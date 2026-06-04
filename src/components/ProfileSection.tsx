@@ -1,0 +1,545 @@
+import React, { useState } from 'react';
+import { useFirebase } from '../context/FirebaseContext';
+import { Achievement, StudentProfile } from '../types';
+import { 
+  User, Mail, Phone, Hash, Award, Trophy, BookOpen, GraduationCap, 
+  Sparkles, Calendar, BookCheck, ClipboardList, PenTool, Edit3, 
+  CheckCircle, ArrowUpRight, TrendingUp, HelpCircle, FileSpreadsheet,
+  AlertCircle
+} from 'lucide-react';
+import { 
+  ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line 
+} from 'recharts';
+
+export default function ProfileSection() {
+  const { 
+    profile, 
+    timelineItems, 
+    registrations, 
+    completedQuizzes, 
+    certificates,
+    updateStudentProfileFromAdmin,
+    isSandboxActive
+  } = useFirebase();
+
+  // Profile Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(profile?.name || '');
+  const [editCourse, setEditCourse] = useState(profile?.course || 3);
+  const [editGroup, setEditGroup] = useState(profile?.group || '');
+  const [editEmail, setEditEmail] = useState(profile?.email || '');
+  const [editPhone, setEditPhone] = useState(profile?.phone || '');
+  const [editIsBudget, setEditIsBudget] = useState(profile?.isBudget !== false);
+  
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  if (!profile) {
+    return (
+      <div className="py-12 text-center text-slate-500 font-sans">
+        <AlertCircle className="h-10 w-10 mx-auto text-slate-300 mb-2" />
+        <p className="font-semibold text-sm">Вам необходимо войти в систему для просмотра профиля</p>
+      </div>
+    );
+  }
+
+  // Handle profile edit submission
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveError('');
+    setSaveSuccess(false);
+
+    if (!editName.trim()) {
+      setSaveError('Пожалуйста, введите ФИО.');
+      return;
+    }
+    if (!editGroup.trim()) {
+      setSaveError('Пожалуйста, введите учебную группу.');
+      return;
+    }
+
+    try {
+      const updatedFields: Partial<StudentProfile> = {
+        name: editName.trim(),
+        course: Number(editCourse),
+        group: editGroup.trim().toUpperCase(),
+        email: editEmail.trim(),
+        phone: editPhone.trim(),
+        isBudget: editIsBudget
+      };
+
+      await updateStudentProfileFromAdmin(profile.studentId, updatedFields);
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setSaveError('Не удалось обновить профиль: ' + err.message);
+    }
+  };
+
+  // Compile achievements dynamically from user data
+  const dynamicAchievements: Achievement[] = [
+    {
+      id: 'badge-welcome',
+      title: 'Первый шаг в СНО',
+      description: 'Приветственный грант научных баллов СНО за авторизацию личного кабинета.',
+      iconName: 'Sparkles',
+      color: 'indigo',
+      requirement: 'Активация учетной записи в системе',
+      isUnlocked: true,
+      unlockedAt: '01.06.2026'
+    },
+    {
+      id: 'badge-reg',
+      title: 'Юный Исследователь',
+      description: 'Успешно подана первая заявка на участие в научном событии.',
+      iconName: 'Calendar',
+      color: 'emerald',
+      requirement: 'Зарегистрироваться на 1 научное мероприятие',
+      isUnlocked: registrations.length >= 1,
+      progress: { current: registrations.length, target: 1 }
+    },
+    {
+      id: 'badge-speaker',
+      title: 'Академический Оратор',
+      description: 'Ваша роль докладчика подтверждена на кафедре ФЭМ в рамках одной из конференций.',
+      iconName: 'GraduationCap',
+      color: 'amber',
+      requirement: 'Записаться на конференцию в роли Докладчика',
+      isUnlocked: registrations.some(r => r.role === 'speaker')
+    },
+    {
+      id: 'badge-quiz',
+      title: 'Эрудит Экономики',
+      description: 'Блестяще пройдена научная quiz-викторина на полярном СНО.',
+      iconName: 'BookCheck',
+      color: 'blue',
+      requirement: 'Пройти хотя бы 1 викторину',
+      isUnlocked: Object.keys(completedQuizzes).length >= 1,
+      progress: { current: Object.keys(completedQuizzes).length, target: 1 }
+    },
+    {
+      id: 'badge-points',
+      title: 'Научный Гроссмейстер',
+      description: 'Накоплено солидное количество баллов научного рейтинга СНО.',
+      iconName: 'Trophy',
+      color: 'rose',
+      requirement: 'Набрать 150 или более баллов',
+      isUnlocked: profile.points >= 150,
+      progress: { current: profile.points, target: 150 }
+    },
+    {
+      id: 'badge-exempt',
+      title: 'Освобожденный Разум',
+      description: 'Вы разменяли научные баллы в магазине на справку-освобождение от занятий.',
+      iconName: 'BookOpen',
+      color: 'purple',
+      requirement: 'Произвести обмен на 1 справку в магазине СНО',
+      isUnlocked: profile.exemptionCount > 0,
+      progress: { current: profile.exemptionCount, target: 1 }
+    }
+  ];
+
+  // Resolve Badge Icons dynamically
+  const getBadgeIcon = (iconName: string, unlocked: boolean) => {
+    const props = { className: `h-6 w-6 ${unlocked ? 'opacity-100 animate-pulse' : 'opacity-40'}` };
+    switch (iconName) {
+      case 'Sparkles': return <Sparkles {...props} />;
+      case 'Calendar': return <Calendar {...props} />;
+      case 'GraduationCap': return <GraduationCap {...props} />;
+      case 'BookCheck': return <BookCheck {...props} />;
+      case 'Trophy': return <Trophy {...props} />;
+      case 'BookOpen': return <BookOpen {...props} />;
+      default: return <Award {...props} />;
+    }
+  };
+
+  // Compile Recharts Progress graph data historically from chronological timelines
+  const buildProgressChartData = () => {
+    const initialPoints = profile.role === 'sno_activist' ? 100 : 50;
+    const sortedItems = [...timelineItems].sort((a, b) => a.date.localeCompare(b.date));
+    
+    const chartData = [
+      { name: 'Регистрация', points: initialPoints, date: '01.06.2026' }
+    ];
+
+    let runningPoints = initialPoints;
+    sortedItems.forEach((item) => {
+      runningPoints += item.pointsChange;
+      // Map nice human names
+      let name = 'Событие';
+      if (item.type === 'quiz') name = 'Викторина';
+      else if (item.type === 'event_registration') name = 'Регистрация';
+      else if (item.type === 'exemption_purchase') name = 'Обмен';
+      else if (item.type === 'academic_award') name = 'Бонус';
+
+      chartData.push({
+        name,
+        points: Math.max(0, runningPoints),
+        date: item.date
+      });
+    });
+
+    return chartData;
+  };
+
+  const cData = buildProgressChartData();
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto px-1 sm:px-4 font-sans animate-fade-in">
+      {/* Welcome & Profile Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 p-6 sm:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 h-48 w-48 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] sm:text-xs font-bold text-emerald-300 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-400/20 uppercase tracking-widest">
+                Студенческий профиль СНО ФЭМ
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
+              {profile.name}
+            </h1>
+            <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed">
+              Зачетная книжка: <b className="font-mono text-indigo-200">{profile.studentId}</b> • Курс: <b className="text-white">{profile.course}</b> • Академическая группа: <b className="text-white">{profile.group}</b>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 self-stretch md:self-auto bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10 shrink-0">
+            <div className="text-center px-4">
+              <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Баланс баллов</span>
+              <span className="text-2xl sm:text-3xl font-mono font-extrabold text-amber-400 flex items-center justify-center gap-1 mt-1">
+                <Sparkles className="h-5 w-5 animate-pulse text-amber-400" />
+                {profile.points}
+              </span>
+            </div>
+            <div className="h-10 w-px bg-white/10"></div>
+            <div className="text-center px-4">
+              <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Освобождений</span>
+              <span className="text-2xl sm:text-3xl font-mono font-extrabold text-purple-400 flex items-center justify-center gap-1 mt-1">
+                <BookOpen className="h-5 w-5 text-purple-400" />
+                {profile.exemptionCount}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {saveSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-2xl flex items-center gap-2 max-w-xl animate-fade-in">
+          <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+          <span className="font-semibold">Даные личного кабинета успешно обновлены и синхронизированы!</span>
+        </div>
+      )}
+
+      {/* Grid Content: Profile settings / Form VS. Progress Graph */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Hand: Profile Card & Edit Forms */}
+        <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-md space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+              <User className="h-5 w-5 text-blue-900" />
+              <span>Личная информация</span>
+            </h2>
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="text-xs font-bold text-blue-900 hover:text-blue-950 flex items-center gap-1 bg-blue-50 py-1.5 px-3 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors shrink-0 cursor-pointer"
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+              {isEditing ? 'Отмена' : 'Изменить'}
+            </button>
+          </div>
+
+          {isEditing ? (
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              {saveError && (
+                <div className="p-3 bg-red-50 text-red-800 text-xs rounded-xl flex items-center gap-1.5 border border-red-150">
+                  <AlertCircle className="h-4 w-4 text-red-650 shrink-0" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Полное Имя (ФИО) *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800 leading-snug font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Курс обучения *</label>
+                  <select
+                    value={editCourse}
+                    onChange={(e) => setEditCourse(Number(e.target.value))}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800 font-medium"
+                  >
+                    {[1, 2, 3, 4, 5].map(c => (
+                      <option key={c} value={c}>{c}-й курс</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Группа (номер) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editGroup}
+                    onChange={(e) => setEditGroup(e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Электронная почта</label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800 font-medium"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Номер телефона</label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+375 (29) 123-45-67"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="budget_cb"
+                  checked={editIsBudget}
+                  onChange={(e) => setEditIsBudget(e.target.checked)}
+                  className="rounded text-blue-900 focus:ring-blue-900 h-4 w-4"
+                />
+                <label htmlFor="budget_cb" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Обучаюсь за счет бюджетного ассигнования
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2 px-4 bg-blue-900 text-white hover:bg-blue-950 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md mt-4 uppercase border-none"
+              >
+                Сохранить настройки
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              {/* Profile Read Only Metrics */}
+              <div className="flex items-start gap-3">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-100 mt-0.5 shrink-0">
+                  <Hash className="h-4.5 w-4.5 text-blue-900" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID Зачетной книжки</span>
+                  <span className="text-sm font-semibold font-mono text-slate-800">{profile.studentId}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-100 mt-0.5 shrink-0">
+                  <Mail className="h-4.5 w-4.5 text-blue-900" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Электронный адрес</span>
+                  <span className="text-sm font-semibold text-slate-800">{profile.email || 'Не указан'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-100 mt-0.5 shrink-0">
+                  <Phone className="h-4.5 w-4.5 text-blue-900" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Телефонный контакт</span>
+                  <span className="text-sm font-semibold text-slate-850 font-mono">{profile.phone || 'Не указан'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-100 mt-0.5 shrink-0">
+                  <GraduationCap className="h-4.5 w-4.5 text-blue-900" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Форма финансирования</span>
+                  <span className="text-sm font-semibold text-slate-800">
+                    {profile.isBudget !== false ? 'Бюджетная' : 'Платная основа'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 text-slate-400 border border-slate-100 mt-0.5 shrink-0">
+                  <ClipboardList className="h-4.5 w-4.5 text-blue-900" />
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Степень / Роль СНО</span>
+                  <span className="text-xs font-bold text-blue-800 uppercase px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-100 mt-1 inline-block">
+                    {profile.role === 'sno_activist' ? 'Активист СНО ФЭМ / Модератор' : 'Студент-Исследователь'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Hand: Progress graph of points */}
+        <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-md space-y-6 flex flex-col justify-between self-stretch">
+          <div className="space-y-1">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+              <TrendingUp className="h-5 w-5 text-indigo-750" />
+              <span>График академического прогресса</span>
+            </h2>
+            <p className="text-slate-500 text-xs">
+              Динамика научных баллов СНО за текущий семестр. Отражает начисления за доклады, викторины и списания на освобождения.
+            </p>
+          </div>
+
+          {/* Graph area with recharts responsive container */}
+          <div className="h-64 sm:h-72 w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={cData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
+                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} stroke="#cbd5e1" />
+                <Tooltip 
+                  contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
+                  labelStyle={{ fontWeight: 'bold', color: '#38bdf8' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="points" 
+                  stroke="#1e3a8a" 
+                  strokeWidth={3} 
+                  activeDot={{ r: 6 }} 
+                  dot={{ strokeWidth: 2, r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-slate-500 text-xs flex items-center gap-2 md:col-span-1 leading-normal font-sans">
+            <span className="text-[10px] font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded uppercase shrink-0">Пояснение</span>
+            <span>Каждая отметка на графике — это научное достижение (сдача теста, доклад). Точки роста ведут к справкам-освобождениям от занятий в деканате БГЭУ.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Badges system (Achievements and Rewards Grid) */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-md space-y-6">
+        <div className="space-y-1 border-b border-slate-100 pb-3">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+            <Trophy className="h-5.5 w-5.5 text-amber-500" />
+            <span>Раздел «Достижения и Научные Награды»</span>
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm">
+            Зарабатывайте уникальные цифровые значки (бейджи) за участие в дискуссиях СНО БГЭУ, доклады на круглых столах и пополнение научного портфолио!
+          </p>
+        </div>
+
+        {/* Badges grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          {dynamicAchievements.map((badge) => {
+            return (
+              <div 
+                key={badge.id}
+                className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 relative overflow-hidden group ${
+                  badge.isUnlocked
+                    ? 'bg-gradient-to-br from-white to-slate-50 border-slate-200 shadow-sm hover:shadow-md hover:border-slate-350'
+                    : 'bg-slate-50/70 border-slate-205/60 text-slate-400 select-none'
+                }`}
+              >
+                {/* Visual badge top line and shine effect */}
+                {badge.isUnlocked && (
+                  <div className={`absolute top-0 left-0 w-2 h-full ${
+                    badge.color === 'indigo' ? 'bg-indigo-600' :
+                    badge.color === 'emerald' ? 'bg-emerald-600' :
+                    badge.color === 'amber' ? 'bg-amber-600' :
+                    badge.color === 'blue' ? 'bg-blue-600' :
+                    badge.color === 'rose' ? 'bg-rose-600' : 'bg-purple-600'
+                  }`} />
+                )}
+
+                <div className="space-y-2 select-text">
+                  <div className="flex items-center justify-between">
+                    {/* Badge Icon circle */}
+                    <div className={`h-11 w-11 rounded-xl flex items-center justify-center border shrink-0 ${
+                      badge.isUnlocked
+                        ? badge.color === 'indigo' ? 'bg-indigo-50 border-indigo-200 text-indigo-750' :
+                          badge.color === 'emerald' ? 'bg-emerald-50 border-emerald-200 text-emerald-750' :
+                          badge.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-750' :
+                          badge.color === 'blue' ? 'bg-blue-50 border-blue-200 text-blue-750' :
+                          badge.color === 'rose' ? 'bg-rose-50 border-rose-200 text-rose-750' :
+                          'bg-purple-50 border-purple-200 text-purple-750'
+                        : 'bg-slate-100 border-slate-200 text-slate-300'
+                    }`}>
+                      {getBadgeIcon(badge.iconName, badge.isUnlocked)}
+                    </div>
+
+                    {/* Unlocked stamp badge */}
+                    <span className={`text-[9px] font-extrabold uppercase font-sans tracking-wide px-2 py-0.5 rounded-full border ${
+                      badge.isUnlocked
+                        ? 'bg-emerald-50 text-emerald-850 border-emerald-250'
+                        : 'bg-slate-100 text-slate-350 border-slate-200'
+                    }`}>
+                      {badge.isUnlocked ? 'Получено' : 'Заблокировано'}
+                    </span>
+                  </div>
+
+                  <div className="p-0.5">
+                    <h3 className={`text-sm font-bold leading-snug font-sans ${badge.isUnlocked ? 'text-slate-900 group-hover:text-blue-900 transition-colors' : 'text-slate-500'}`}>
+                      {badge.title}
+                    </h3>
+                    <p className="text-[11px] leading-relaxed mt-1 text-slate-500 font-sans">
+                      {badge.description}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Progress bar info for target goals */}
+                <div className="pt-2 border-t border-slate-100 select-text">
+                  <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-sans">Требование</span>
+                  <p className={`text-[10px] font-medium leading-none ${badge.isUnlocked ? 'text-slate-700 font-bold' : 'text-slate-550'}`}>
+                    {badge.requirement}
+                  </p>
+                  
+                  {badge.progress && (
+                    <div className="mt-2.5 space-y-1">
+                      <div className="flex items-center justify-between text-[9px] text-slate-400 font-bold font-mono">
+                        <span>Прогресс</span>
+                        <span>{Math.min(badge.progress.current, badge.progress.target)} / {badge.progress.target}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200/50">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            badge.isUnlocked ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : 'bg-slate-300'
+                          }`}
+                          style={{ width: `${Math.min(100, (badge.progress.current / badge.progress.target) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
