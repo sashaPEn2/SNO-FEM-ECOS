@@ -18,7 +18,7 @@ import {
   User as FirebaseUser
 } from 'firebase/auth';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
-import { StudentProfile, NewsItem, ScienceEvent, EventRegistration, ExemptionCertificate, Quiz, TimelineItem, StudentFeedback, SystemLog } from '../types';
+import { StudentProfile, NewsItem, ScienceEvent, EventRegistration, ExemptionCertificate, Quiz, TimelineItem, StudentFeedback, SystemLog, PushNotification } from '../types';
 import { initialNews, initialEvents, quizzesData, initialFeedbacks, initialLogs } from '../mockData';
 
 interface FirebaseContextType {
@@ -56,6 +56,13 @@ interface FirebaseContextType {
   bulkUpdateRegistrations: (registrationIds: string[], actionType: 'delete' | 'change_role' | 'mark_attended', payload?: any) => Promise<void>;
   updateStudentProfileFromAdmin: (studentId: string, fields: Partial<StudentProfile>) => Promise<void>;
   resetAllDbData: () => Promise<void>;
+  notifications: PushNotification[];
+  activeToast: PushNotification | null;
+  setActiveToast: (toast: PushNotification | null) => void;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  clearNotifications: () => Promise<void>;
+  createNotification: (studentId: string, title: string, message: string, type: PushNotification['type'], eventId?: string, newsId?: string) => Promise<void>;
+  createScienceEvent: (event: ScienceEvent) => Promise<void>;
 }
 
 export function normalizeStudentId(id: string): string {
@@ -90,15 +97,7 @@ export function useFirebase() {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [isSandboxActive, setIsSandboxActive] = useState<boolean>(() => {
-    const saved = localStorage.getItem('sno_sandbox_active');
-    if (saved === null) {
-      // By default, save to Cloud Firestore directly!
-      localStorage.setItem('sno_sandbox_active', 'false');
-      return false;
-    }
-    return saved === 'true';
-  });
+  const [isSandboxActive, setIsSandboxActive] = useState<boolean>(false);
 
   const [sandboxUser, setSandboxUser] = useState<StudentProfile | null>(() => {
     const saved = localStorage.getItem('sno_sandbox_user');
@@ -182,6 +181,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : initialLogs;
   });
 
+  const [sbNotifications, setSbNotifications] = useState<PushNotification[]>(() => {
+    const saved = localStorage.getItem('sno_sb_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [activeToast, setActiveToast] = useState<PushNotification | null>(null);
+
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -194,6 +200,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [registeredUsersList, setRegisteredUsersList] = useState<StudentProfile[]>([]);
   const [feedbacks, setFeedbacks] = useState<StudentFeedback[]>([]);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
+  const [notifications, setNotifications] = useState<PushNotification[]>([]);
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
@@ -375,7 +382,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     const unsubLogs = onSnapshot(collection(db, 'system_logs'), (snapshot) => {
       const lList: SystemLog[] = [];
       snapshot.forEach(doc => {
-        lList.push(doc.data() as SystemLog);
+        if (doc.exists()) {
+          lList.push(doc.data() as SystemLog);
+        }
       });
       setSystemLogs(lList.sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
     }, (error) => {
@@ -391,31 +400,40 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, [currentUser]);
 
-  // 3. Auth Session restoration on mount (Firestore-based login)
+  // Notifications live listener
   useEffect(() => {
-    const savedId = localStorage.getItem('sno_active_profile_id');
-    if (savedId) {
-      const profileRef = doc(db, 'users', savedId);
-      getDoc(profileRef).then((profileSnap) => {
-        if (profileSnap.exists()) {
-          const pData = profileSnap.data() as StudentProfile;
-          setProfile(pData);
-          setCurrentUser({
-            uid: pData.studentId,
-            email: pData.email || '',
-            displayName: pData.name
-          } as any);
-        } else {
-          localStorage.removeItem('sno_active_profile_id');
-        }
-        setIsAuthLoading(false);
-      }).catch((err) => {
-        console.error("Error reading saved profile on mount: ", err);
-        setIsAuthLoading(false);
-      });
-    } else {
-      setIsAuthLoading(false);
+    if (!currentUser) {
+      setNotifications([]);
+      return;
     }
+    const userId = currentUser.uid;
+    const unsubNotifs = onSnapshot(collection(db, 'users', userId, 'notifications'), (snapshot) => {
+      const list: PushNotification[] = [];
+      snapshot.forEach(docSnap => {
+        if (docSnap.exists()) {
+          list.push(docSnap.data() as PushNotification);
+        }
+      });
+      setNotifications(list.sort((a, b) => b.id.localeCompare(a.id)));
+    }, (error) => {
+      console.warn("Notifications snap load error: ", error);
+    });
+    return () => unsubNotifs();
+  }, [currentUser]);
+
+  // 3. Auth Session restoration on mount (Real Firebase Auth)
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setIsAuthLoading(true);
+      if (firebaseUser) {
+        setCurrentUser(firebaseUser);
+      } else {
+        setCurrentUser(null);
+        setProfile(null);
+      }
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   // 3b. Real-time personal doc & timeline updates
@@ -426,25 +444,49 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const userId = currentUser.uid;
-    const unsubProfile = onSnapshot(doc(db, 'users', userId), (docSnap) => {
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as StudentProfile);
-      }
-    }, (error) => {
-      console.warn("Profile snapshot error: ", error);
-    });
+    let unsubProfile = () => {};
+    let unsubTimeline = () => {};
 
-    const timelineRef = collection(db, 'users', userId, 'timeline');
-    const unsubTimeline = onSnapshot(timelineRef, (snapshot) => {
-      const tList: TimelineItem[] = [];
-      snapshot.forEach(doc => {
-        tList.push(doc.data() as TimelineItem);
+    const setupListeners = async () => {
+      let docId = currentUser.uid;
+      try {
+        // Let's check if users/{uid} doc exists
+        const directDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (!directDoc.exists()) {
+          // Find doc where email matches
+          const querySnap = await getDocs(collection(db, 'users'));
+          querySnap.forEach(snap => {
+            const u = snap.data() as StudentProfile;
+            if (u.email?.toLowerCase().trim() === currentUser.email?.toLowerCase().trim()) {
+              docId = snap.id;
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Could not match user doc by uid, using default uid index:", err);
+      }
+
+      unsubProfile = onSnapshot(doc(db, 'users', docId), (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as StudentProfile);
+        }
+      }, (error) => {
+        console.warn("Profile snapshot error: ", error);
       });
-      setTimelineItems(tList.sort((a, b) => b.date.localeCompare(a.date)));
-    }, (error) => {
-      console.warn("Timeline snapshot error: ", error);
-    });
+
+      const timelineRef = collection(db, 'users', docId, 'timeline');
+      unsubTimeline = onSnapshot(timelineRef, (snapshot) => {
+        const tList: TimelineItem[] = [];
+        snapshot.forEach(doc => {
+          tList.push(doc.data() as TimelineItem);
+        });
+        setTimelineItems(tList.sort((a, b) => b.date.localeCompare(a.date)));
+      }, (error) => {
+        console.warn("Timeline snapshot error: ", error);
+      });
+    };
+
+    setupListeners();
 
     return () => {
       unsubProfile();
@@ -468,14 +510,16 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const activeRegisteredUsersList = isSandboxActive ? sbUsersList : registeredUsersList;
   const activeFeedbacks = isSandboxActive ? sbFeedbacks : feedbacks;
   const activeLogs = isSandboxActive ? sbLogs : systemLogs;
+  
+  const activeNotifications = isSandboxActive
+    ? sbNotifications.filter(n => n.studentId === sandboxUser?.studentId)
+    : notifications;
 
   const handleToggleSandbox = (active: boolean) => {
-    setIsSandboxActive(active);
-    localStorage.setItem('sno_sandbox_active', String(active));
-    if (!active) {
-      setSandboxUser(null);
-      localStorage.removeItem('sno_sandbox_user');
-    }
+    setIsSandboxActive(false);
+    localStorage.setItem('sno_sandbox_active', 'false');
+    setSandboxUser(null);
+    localStorage.removeItem('sno_sandbox_user');
   };
 
   // LOGIN FUNCTION
@@ -500,45 +544,65 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const querySnap = await getDocs(collection(db, 'users'));
-      let studentExists = false;
-      let passwordMatched = false;
-      let matchedProfile: StudentProfile | null = null;
-
-      querySnap.forEach(docSnap => {
-        const p = docSnap.data() as StudentProfile;
-        const pEmail = p.email?.toLowerCase().trim() || '';
-        const pIdNormalized = normalizeStudentId(p.studentId);
-        if (pEmail === emailLower || pIdNormalized === idNormalized) {
-          studentExists = true;
-          const expectedPassword = p.password || '123';
-          if (expectedPassword === password) {
-            passwordMatched = true;
-            matchedProfile = p;
+      let targetEmail = emailLower;
+      if (!emailLower.includes('@')) {
+        // Find user email by studentId mapping first
+        const allUsersSnap = await getDocs(collection(db, 'users'));
+        let foundEmail = '';
+        allUsersSnap.forEach(docSnap => {
+          const u = docSnap.data() as StudentProfile;
+          if (normalizeStudentId(u.studentId) === idNormalized) {
+            foundEmail = u.email?.toLowerCase().trim() || '';
           }
+        });
+        if (foundEmail) {
+          targetEmail = foundEmail;
+        } else {
+          throw new Error("Студент с указанным ID зачетной книжки не обнаружен в базе СНО ФЭМ. Будьте добры, сначала пройдите Регистрацию!");
         }
-      });
+      }
 
-      if (matchedProfile) {
-        const prof = matchedProfile as StudentProfile;
-        setCurrentUser({
-          uid: prof.studentId,
-          email: prof.email || '',
-          displayName: prof.name
-        } as any);
+      // Authenticate with real Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
+      const firebaseUid = userCredential.user.uid;
+
+      // Try fetching matching user document from Firestore (users/{firebaseUid})
+      const userRef = doc(db, 'users', firebaseUid);
+      const profileSnap = await getDoc(userRef);
+      if (profileSnap.exists()) {
+        const prof = profileSnap.data() as StudentProfile;
         setProfile(prof);
-        localStorage.setItem('sno_active_profile_id', prof.studentId);
+        localStorage.setItem('sno_active_profile_id', firebaseUid);
         return prof;
-      }
+      } else {
+        // Fallback/Legacy: locate user doc by email lookup
+        const allUsersSnap = await getDocs(collection(db, 'users'));
+        let foundProfile: StudentProfile | null = null;
+        let matchedDocId = firebaseUid;
+        allUsersSnap.forEach(docSnap => {
+          const u = docSnap.data() as StudentProfile;
+          if (u.email?.toLowerCase().trim() === targetEmail) {
+            foundProfile = u;
+            matchedDocId = docSnap.id;
+          }
+        });
 
-      if (studentExists) {
-        throw new Error("Неверный пароль. Пожалуйста, введите корректный пароль!");
-      }
+        if (foundProfile) {
+          const prof = foundProfile as StudentProfile;
+          setProfile(prof);
+          localStorage.setItem('sno_active_profile_id', matchedDocId);
+          return prof;
+        }
 
-      throw new Error("Студент не найден в облачной базе СНО ФЭМ или неверный пароль. Пожалуйста, пройдите самостоятельно Регистрацию!");
+        throw new Error("Не удалось загрузить личный дел студента. Пожалуйста, обратитесь к деканату ФЭМ.");
+      }
     } catch (error: any) {
       console.error(error);
-      throw error;
+      let errorMsg = error.message;
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMsg = 'Неверный адрес электронной почты, ID зачетки или пароль.';
+      }
+      throw new Error(errorMsg);
     }
   };
 
@@ -608,11 +672,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (idTaken) {
-        throw new Error(`Студент с ID зачетной книжки ${studentIdNormalized} уже зарегистрирован!`);
+        throw new Error(`Студент с зачетной книжкой ${studentIdNormalized} уже зарегистрирован!`);
       }
       if (emailTaken) {
-        throw new Error(`Студент с электронной почтой ${emailNormalized} уже зарегистрирован!`);
+        throw new Error(`Студент с E-mail адресом ${emailNormalized} уже зарегистрирован!`);
       }
+
+      // Create new authentic account in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, emailNormalized, password);
+      const firebaseUid = userCredential.user.uid;
 
       // Draft profile payload
       const finalProfile: StudentProfile = {
@@ -624,12 +692,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         exemptionCount: 0
       };
 
-      // Write direct to Firestore
-      const userRef = doc(db, 'users', studentIdNormalized);
+      // Write direct to Firestore under users/{firebaseUid}
+      const userRef = doc(db, 'users', firebaseUid);
       await setDoc(userRef, finalProfile);
 
       // Create initial timeline award log
-      const timelineRef = doc(db, 'users', studentIdNormalized, 'timeline', 't-init-0');
+      const timelineRef = doc(db, 'users', firebaseUid, 'timeline', 't-init-0');
       const initTimelineItem: TimelineItem = {
         id: 't-init-0',
         type: 'academic_award',
@@ -642,18 +710,20 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       await setDoc(timelineRef, initTimelineItem);
 
       // Set active session context
-      setCurrentUser({
-        uid: finalProfile.studentId,
-        email: finalProfile.email || '',
-        displayName: finalProfile.name
-      } as any);
+      setCurrentUser(userCredential.user);
       setProfile(finalProfile);
-      localStorage.setItem('sno_active_profile_id', finalProfile.studentId);
+      localStorage.setItem('sno_active_profile_id', firebaseUid);
 
       return finalProfile;
     } catch (err: any) {
       console.error(err);
-      throw err;
+      let errorMsg = err.message;
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = 'Этот адрес электронной почты уже используется в системе.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMsg = 'Пароль слишком простой. Рекомендуется минимум 6 символов.';
+      }
+      throw new Error(errorMsg);
     }
   };
 
@@ -664,6 +734,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('sno_sandbox_user');
       return;
     }
+    await signOut(auth);
     setCurrentUser(null);
     setProfile(null);
     localStorage.removeItem('sno_active_profile_id');
@@ -702,7 +773,174 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // EVENT BOOKING
+  // NOTIFICATION ACTIONS
+  const triggerToast = (notif: PushNotification) => {
+    setActiveToast(notif);
+    setTimeout(() => {
+      setActiveToast(null);
+    }, 5000);
+  };
+
+  const createNotification = async (
+    studentId: string,
+    title: string,
+    message: string,
+    type: PushNotification['type'],
+    eventId?: string,
+    newsId?: string
+  ) => {
+    const id = `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newNotif: PushNotification = {
+      id,
+      title,
+      message,
+      type,
+      date: new Date().toLocaleDateString('ru-RU') + ' ' + new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      eventId,
+      newsId
+    };
+
+    if (isSandboxActive) {
+      const saved = localStorage.getItem('sno_sb_notifications');
+      const list = saved ? JSON.parse(saved) : [];
+      const finalNotif = { ...newNotif, studentId };
+      const updated = [finalNotif, ...list];
+      setSbNotifications(updated);
+      localStorage.setItem('sno_sb_notifications', JSON.stringify(updated));
+
+      if (sandboxUser && sandboxUser.studentId === studentId) {
+        triggerToast(finalNotif);
+      }
+      return;
+    }
+
+    try {
+      let targetUserDocId = studentId;
+      // Find matching user document in case studentId (e.g. "БГЭУ-ФЭМ-30248") is passed instead of Firebase Auth UID
+      const allUsersSnap = await getDocs(collection(db, 'users'));
+      allUsersSnap.forEach(docSnap => {
+        const u = docSnap.data() as StudentProfile;
+        if (normalizeStudentId(u.studentId) === normalizeStudentId(studentId) || u.email?.toLowerCase().trim() === studentId.toLowerCase().trim()) {
+          targetUserDocId = docSnap.id;
+        }
+      });
+
+      await setDoc(doc(db, 'users', targetUserDocId, 'notifications', id), newNotif);
+      if (profile && (profile.studentId === studentId || currentUser?.uid === targetUserDocId)) {
+        triggerToast(newNotif);
+      }
+    } catch (err) {
+      console.error("Failed to write notification", err);
+    }
+  };
+
+  const markNotificationAsRead = async (id: string) => {
+    const studentId = isSandboxActive ? sandboxUser?.studentId : currentUser?.uid;
+    if (!studentId) return;
+
+    if (isSandboxActive) {
+      const updated = sbNotifications.map(n => n.id === id ? { ...n, read: true } : n);
+      setSbNotifications(updated);
+      localStorage.setItem('sno_sb_notifications', JSON.stringify(updated));
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', studentId, 'notifications', id), { read: true });
+    } catch (err) {
+      console.error("Failed to mark notification as read", err);
+    }
+  };
+
+  const clearNotifications = async () => {
+    const studentId = isSandboxActive ? sandboxUser?.studentId : currentUser?.uid;
+    if (!studentId) return;
+
+    if (isSandboxActive) {
+      const updated = sbNotifications.filter(n => n.studentId !== studentId);
+      setSbNotifications(updated);
+      localStorage.setItem('sno_sb_notifications', JSON.stringify(updated));
+      return;
+    }
+
+    try {
+      const snap = await getDocs(collection(db, 'users', studentId, 'notifications'));
+      const batch = writeBatch(db);
+      snap.forEach(d => {
+        batch.delete(doc(db, 'users', studentId, 'notifications', d.id));
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to clear notifications", err);
+    }
+  };
+
+  // ADD EVENT / CONFERENCE (ORGANIZER TRIGGERED)
+  const createScienceEvent = async (event: ScienceEvent) => {
+    if (isSandboxActive) {
+      const updated = [...sbEvents, event];
+      setSbEvents(updated);
+      localStorage.setItem('sno_sb_events', JSON.stringify(updated));
+
+      sbUsersList.forEach(u => {
+        createNotification(
+          u.studentId,
+          "Регистрация на конференцию",
+          `Открыта подача заявок на: «${event.title}» (${event.date} г.). Ознакомьтесь с условиями участия!`,
+          'event',
+          event.id
+        );
+      });
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'events', event.id), event);
+
+      registeredUsersList.forEach(u => {
+        createNotification(
+          u.studentId,
+          "Регистрация на конференцию",
+          `Открыта подача заявок на: «${event.title}» (${event.date} г.). Ознакомьтесь с условиями участия!`,
+          'event',
+          event.id
+        );
+      });
+    } catch (err) {
+      console.error("Error creating scientific event", err);
+    }
+  };
+
+  // Approaching event date checker algorithm
+  useEffect(() => {
+    const studentId = activeProfile?.studentId;
+    if (!studentId) return;
+
+    // Filter registrations of the student
+    const myRegistrations = activeRegistrations.filter(r => r.studentId === studentId);
+
+    myRegistrations.forEach(reg => {
+      // Check if reminder notification already existed
+      const reminderExists = activeNotifications.some(n => n.eventId === reg.eventId && n.type === 'reminder');
+      if (!reminderExists) {
+        const matchingEv = activeEvents.find(e => e.id === reg.eventId);
+        if (matchingEv) {
+          // Generate realistic alarm notification
+          createNotification(
+            studentId,
+            "Приближение события СНО",
+            `Вы записаны на научное событие «${reg.eventTitle}», которое состоится ${matchingEv.date} в ${matchingEv.time} в ${matchingEv.location}. Подготовьтесь!`,
+            'reminder',
+            reg.eventId
+          );
+        }
+      }
+    });
+
+  }, [activeProfile, activeRegistrations, activeEvents]);
+
+  // REGISTER FOR EVENT (augmented with notifications)
   const registerForEvent = async (regData: Omit<EventRegistration, 'id' | 'registrationDate' | 'qrCodeValue'>) => {
     const activeProf = isSandboxActive ? sandboxUser : profile;
     if (!activeProf) return;
@@ -722,6 +960,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       const updatedRegs = [...sbRegistrations, newRegistration];
       setSbRegistrations(updatedRegs);
       localStorage.setItem('sno_sb_registrations', JSON.stringify(updatedRegs));
+
+      // Notify Student
+      createNotification(
+        activeProf.studentId,
+        "Успешная запись на событие",
+        `Вы успешно подали заявку на участие в «${regData.eventTitle}» с ролью «${regData.role === 'speaker' ? 'Докладчик' : 'Слушатель'}».`,
+        'registration',
+        regData.eventId
+      );
 
       const matchingEvent = sbEvents.find(e => e.id === regData.eventId);
       if (matchingEvent) {
@@ -773,6 +1020,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       // 1. Write registration document
       await setDoc(doc(db, 'registrations', mockId), newRegistration);
 
+      // Notify Student
+      await createNotification(
+        activeProf.studentId,
+        "Успешная запись на событие",
+        `Вы успешно подали заявку на участие в «${regData.eventTitle}» с ролью «${regData.role === 'speaker' ? 'Докладчик' : 'Слушатель'}».`,
+        'registration',
+        regData.eventId
+      );
+
       // 2. Increment count on conference event
       const matchingEvent = events.find(e => e.id === regData.eventId);
       if (matchingEvent) {
@@ -820,6 +1076,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       setSbRegistrations(updatedRegs);
       localStorage.setItem('sno_sb_registrations', JSON.stringify(updatedRegs));
 
+      // Notify student
+      createNotification(
+        activeProf.studentId,
+        "Запись аннулирована",
+        `Вы успешно отменили регистрацию на «${regToCancel.eventTitle}». Научный рейтинг скорректирован.`,
+        'registration',
+        regToCancel.eventId
+      );
+
       const matchingEvent = sbEvents.find(e => e.id === regToCancel.eventId);
       if (matchingEvent) {
         const updatedEvents = sbEvents.map(e => e.id === regToCancel.eventId ? { ...e, registeredCount: Math.max(0, e.registeredCount - 1) } : e);
@@ -853,6 +1118,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
       // 1. Delete registration doc
       await deleteDoc(doc(db, 'registrations', registrationId));
+
+      // Notify student
+      await createNotification(
+        activeProf.studentId,
+        "Запись аннулирована",
+        `Вы успешно отменили регистрацию на «${regToCancel.eventTitle}». Научный рейтинг скорректирован.`,
+        'registration',
+        regToCancel.eventId
+      );
 
       // 2. Decrease count inside corresponding event
       const matchingEvent = events.find(e => e.id === regToCancel.eventId);
@@ -1066,11 +1340,35 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       const updated = [newNews, ...sbNews];
       setSbNews(updated);
       localStorage.setItem('sno_sb_news', JSON.stringify(updated));
+
+      // Notification broadcast
+      sbUsersList.forEach(u => {
+        createNotification(
+          u.studentId,
+          "Новости СНО ФЭМ",
+          `Опубликован свежий материал: «${newNews.title}». Нажмите для прочтения.`,
+          'news',
+          undefined,
+          newNews.id
+        );
+      });
       return;
     }
 
     try {
       await setDoc(doc(db, 'news', newNews.id), newNews);
+
+      // Notification broadcast
+      registeredUsersList.forEach(u => {
+        createNotification(
+          u.studentId,
+          "Новости СНО ФЭМ",
+          `Опубликован свежий материал: «${newNews.title}». Нажмите для прочтения.`,
+          'news',
+          undefined,
+          newNews.id
+        );
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `news/${newNews.id}`);
     }
@@ -1359,6 +1657,14 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const targetRole = payload?.role || 'listener';
         updatedRegs = sbRegistrations.map(r => {
           if (registrationIds.includes(r.id)) {
+            // Notify student
+            createNotification(
+              r.studentId || '',
+              "Изменение научной роли",
+              `Ваш статус доклада на «${r.eventTitle}» скорректирован на «${targetRole === 'speaker' ? 'Докладчик' : 'Слушатель'}».`,
+              'status_change',
+              r.eventId
+            );
             return { ...r, role: targetRole };
           }
           return r;
@@ -1373,6 +1679,15 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             const pointsReward = reg.role === 'speaker'
               ? (matchingEvent?.pointsForSpeaker || 100)
               : (matchingEvent?.pointsForListener || 30);
+
+            // Notify Student
+            createNotification(
+              reg.studentId || '',
+              "Рейтинг подтвержден Активом",
+              `Ваше фактическое участие в «${reg.eventTitle}» подтверждено. Начислено +${pointsReward} баллов на баланс!`,
+              'status_change',
+              reg.eventId
+            );
 
             updatedUsers = updatedUsers.map(user => {
               if (user.studentId === reg.studentId) {
@@ -1444,6 +1759,17 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const targetRole = payload?.role || 'listener';
         for (const id of registrationIds) {
           batch.update(doc(db, 'registrations', id), { role: targetRole });
+          
+          const reg = registrations.find(r => r.id === id);
+          if (reg) {
+            createNotification(
+              reg.studentId || '',
+              "Изменение научной роли",
+              `Ваш статус доклада на «${reg.eventTitle}» скорректирован на «${targetRole === 'speaker' ? 'Докладчик' : 'Слушатель'}».`,
+              'status_change',
+              reg.eventId
+            );
+          }
         }
         await batch.commit();
         await createLog('Пакетные операции', `Групповое изменение роли (${targetRole}) для ${registrationIds.length} участников в облаке.`, 'info');
@@ -1456,6 +1782,14 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             const pointsReward = reg.role === 'speaker'
               ? (event?.pointsForSpeaker || 100)
               : (event?.pointsForListener || 30);
+
+            createNotification(
+              reg.studentId || '',
+              "Рейтинг подтвержден Активом",
+              `Ваше фактическое участие в «${reg.eventTitle}» подтверждено. Начислено +${pointsReward} баллов на баланс!`,
+              'status_change',
+              reg.eventId
+            );
 
             const student = registeredUsersList.find(u => u.studentId === reg.studentId);
             if (student) {
@@ -1507,6 +1841,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       registeredUsersList: activeRegisteredUsersList,
       feedbacks: activeFeedbacks,
       systemLogs: activeLogs,
+      notifications: activeNotifications,
+      activeToast,
+      setActiveToast,
       isSandboxActive,
       setIsSandboxActive: handleToggleSandbox,
       isLoading,
@@ -1528,7 +1865,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       createLog,
       bulkUpdateRegistrations,
       updateStudentProfileFromAdmin,
-      resetAllDbData
+      resetAllDbData,
+      markNotificationAsRead,
+      clearNotifications,
+      createNotification,
+      createScienceEvent
     }}>
       {children}
     </FirebaseContext.Provider>

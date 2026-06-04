@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Quiz, QuizQuestion, ScienceEvent, EventRegistration, StudentProfile } from '../types';
-import { Award, ClipboardList, PenTool, Users, PlusCircle, CheckCircle, BrainCircuit, ShieldAlert, Sparkles, UserPlus } from 'lucide-react';
+import { Award, ClipboardList, PenTool, Users, PlusCircle, CheckCircle, BrainCircuit, ShieldAlert, Sparkles, UserPlus, MapPin, Clock, CalendarDays, BookOpen } from 'lucide-react';
+import { useFirebase } from '../context/FirebaseContext';
 
 interface SnoActiveSectionProps {
   quizzes: Quiz[];
@@ -21,7 +22,20 @@ export default function SnoActiveSection({
   onAwardPoints,
   profile,
 }: SnoActiveSectionProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'quizzes' | 'registrations' | 'award'>('quizzes');
+  const { createScienceEvent } = useFirebase();
+  const [activeSubTab, setActiveSubTab] = useState<'quizzes' | 'registrations' | 'award' | 'events'>('quizzes');
+
+  // --- Dynamic Scientific Event Publishing States ---
+  const [evTitle, setEvTitle] = useState('');
+  const [evDesc, setEvDesc] = useState('');
+  const [evType, setEvType] = useState<'conference' | 'seminar' | 'olympiad' | 'workshop'>('conference');
+  const [evDate, setEvDate] = useState('');
+  const [evTime, setEvTime] = useState('');
+  const [evLocation, setEvLocation] = useState('');
+  const [evSpeakerPoints, setEvSpeakerPoints] = useState<number>(100);
+  const [evListenerPoints, setEvListenerPoints] = useState<number>(30);
+  const [evSuccess, setEvSuccess] = useState('');
+  const [evError, setEvError] = useState('');
 
   // --- Quiz Creation State ---
   const [quizTitle, setQuizTitle] = useState('');
@@ -238,6 +252,18 @@ export default function SnoActiveSection({
         >
           <Sparkles className="h-4 w-4 text-amber-500" />
           <span>Начисление баллов</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('events')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+            activeSubTab === 'events'
+              ? 'bg-white text-blue-950 shadow-sm'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <PlusCircle className="h-4 w-4 text-emerald-600" />
+          <span>Опубликовать событие</span>
         </button>
       </div>
 
@@ -625,6 +651,192 @@ export default function SnoActiveSection({
               >
                 <Sparkles className="h-4 w-4 text-amber-300" />
                 <span>Начислить академические баллы</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeSubTab === 'events' && (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-md space-y-6">
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <PlusCircle className="h-5.5 w-5.5 text-blue-900" />
+              <span>Создать и анонсировать научное событие</span>
+            </h2>
+            <p className="text-slate-505 text-xs sm:text-sm">
+              Анонсируйте новые конференции, воркшопы или научные олимпиады. Публикация автоматически отправит Push-уведомление всем студентам в системе!
+            </p>
+          </div>
+
+          {evSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-250 text-emerald-800 text-xs sm:text-sm rounded-2xl flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{evSuccess}</span>
+            </div>
+          )}
+
+          {evError && (
+            <div className="p-4 bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm rounded-2xl flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-650 shrink-0" />
+              <span>{evError}</span>
+            </div>
+          )}
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setEvError('');
+            setEvSuccess('');
+
+            if (!evTitle.trim() || !evDesc.trim() || !evDate || !evTime || !evLocation.trim()) {
+              setEvError('Пожалуйста, заполните необходимые реквизиты события!');
+              return;
+            }
+
+            try {
+              const newEvent: ScienceEvent = {
+                id: `ev-custom-${Date.now()}`,
+                title: evTitle.trim(),
+                description: evDesc.trim(),
+                date: evDate,
+                time: evTime,
+                location: evLocation.trim(),
+                pointsForSpeaker: Number(evSpeakerPoints),
+                pointsForListener: Number(evListenerPoints),
+                registeredCount: 0
+              };
+
+              await createScienceEvent(newEvent);
+              setEvSuccess(`Успешно! Мероприятие «${newEvent.title}» опубликовано. Всем участникам отправлено Push-оповещение.`);
+              setEvTitle('');
+              setEvDesc('');
+              setEvDate('');
+              setEvTime('');
+              setEvLocation('');
+              setEvSpeakerPoints(100);
+              setEvListenerPoints(30);
+            } catch (err: any) {
+              setEvError('Не удалось создать событие: ' + err.message);
+            }
+          }} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="md:col-span-3 space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Название научного мероприятия *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="БГЭУ Международная научная конференция молодых ученых"
+                  value={evTitle}
+                  onChange={(e) => setEvTitle(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Тип формата *</label>
+                <select
+                  value={evType}
+                  onChange={(e: any) => setEvType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800"
+                >
+                  <option value="conference">Конференция</option>
+                  <option value="seminar">Семинар СНО</option>
+                  <option value="olympiad">Олимпиада</option>
+                  <option value="workshop">Практический Воркшоп</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Детальное описание и требования по докладам *</label>
+              <textarea
+                required
+                rows={3}
+                placeholder="Укажите повестку круглого стола СНО, секции ФЭМ и условия сдачи научных докладов..."
+                value={evDesc}
+                onChange={(e) => setEvDesc(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-800"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                  <CalendarDays className="h-3.5 w-3.5 text-blue-900" />
+                  <span>Дата проведения *</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="24 октября 2026 г."
+                  value={evDate}
+                  onChange={(e) => setEvDate(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-850"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5 text-blue-900" />
+                  <span>Время начала *</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="14:30"
+                  value={evTime}
+                  onChange={(e) => setEvTime(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-850"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 text-blue-900" />
+                  <span>Место (аудитория) *</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Партизанский 26, ауд. 314"
+                  value={evLocation}
+                  onChange={(e) => setEvLocation(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-850"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Баллы докладчикам *</label>
+                <input
+                  type="number"
+                  required
+                  value={evSpeakerPoints}
+                  onChange={(e) => setEvSpeakerPoints(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-850"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Баллы слушателям *</label>
+                <input
+                  type="number"
+                  required
+                  value={evListenerPoints}
+                  onChange={(e) => setEvListenerPoints(Number(e.target.value))}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-205 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-xs sm:text-sm text-slate-850"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="w-full sm:w-auto px-6 py-2.5 bg-blue-900 text-white rounded-xl text-xs sm:text-sm font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 border-none cursor-pointer"
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>Учредить событие и разослать Push-оповещения</span>
               </button>
             </div>
           </form>

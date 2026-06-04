@@ -1,4 +1,5 @@
-import { BookOpen, Calendar, Award, ShoppingBag, User, GraduationCap, Sparkles, Trophy, ShieldCheck, Server, LogOut, Shield } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpen, Calendar, Award, ShoppingBag, User, GraduationCap, Sparkles, Trophy, ShieldCheck, Server, LogOut, Shield, Bell, Trash, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { useFirebase } from '../context/FirebaseContext';
 
@@ -6,21 +7,21 @@ interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   profile: StudentProfile & { role?: 'student' | 'sno_activist' };
-  onOpenSimulator: () => void;
   onLogout: () => void;
   isLoggedIn: boolean;
 }
 
-export default function Header({ activeTab, setActiveTab, profile, onOpenSimulator, onLogout, isLoggedIn }: HeaderProps) {
-  const { isSandboxActive } = useFirebase();
+export default function Header({ activeTab, setActiveTab, profile, onLogout, isLoggedIn }: HeaderProps) {
+  const { isSandboxActive, notifications, markNotificationAsRead, clearNotifications } = useFirebase();
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+
   // Common tabs visible to everyone
   const tabs = [
+    { id: 'profile', label: 'Профиль', icon: User },
     { id: 'news', label: 'Новости СНО', icon: BookOpen },
     { id: 'calendar', label: 'Календарь событий', icon: Calendar },
     { id: 'quiz', label: 'Викторины', icon: Award },
-    { id: 'store', label: 'Обмен баллов', icon: ShoppingBag },
     { id: 'timeline', label: 'Достижения', icon: Trophy },
-    { id: 'verify', label: 'Реестр и Верификация', icon: ShieldCheck },
   ];
 
   // Organizer tab if they are SNO activist
@@ -28,6 +29,8 @@ export default function Header({ activeTab, setActiveTab, profile, onOpenSimulat
     tabs.push({ id: 'sno_active', label: 'Актив СНО', icon: Server });
     tabs.push({ id: 'admin_dashboard', label: 'Админ-Панель', icon: Shield });
   }
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -59,25 +62,78 @@ export default function Header({ activeTab, setActiveTab, profile, onOpenSimulat
 
         {/* Navigation Tabs */}
         {isLoggedIn && (
-          <nav className="hidden lg:flex space-x-0.5 xl:space-x-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
+          <nav className="hidden lg:flex items-center space-x-1">
+            {/* Direct Links to Core Sections */}
+            <div className="flex items-center space-x-1 border-r border-slate-100 pr-2 mr-2">
+              {[
+                { id: 'profile', label: 'Личный кабинет', icon: User },
+                { id: 'news', label: 'Новости СНО', icon: BookOpen },
+                { id: 'calendar', label: 'Календарь', icon: Calendar },
+                { id: 'quiz', label: 'Викторины', icon: Award },
+                { id: 'timeline', label: 'Достижения', icon: Trophy },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-900 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Dropdown 3: Organizer Panel (Activists only) */}
+            {profile.role === 'sno_activist' && (
+              <div className="relative group/dropdown">
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-1.5 lg:space-x-2 px-2 py-1.5 lg:px-3 lg:py-2 rounded-xl text-xs font-semibold transition-all ${
-                    isActive
-                      ? 'bg-blue-900 text-white shadow-sm'
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    ['sno_active', 'admin_dashboard'].includes(activeTab)
+                      ? 'bg-emerald-50 text-emerald-900 border border-emerald-100/60'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5 xl:h-4 xl:w-4 shrink-0" />
-                  <span className="truncate max-w-[80px] xl:max-w-none">{tab.label}</span>
+                  <Shield className="h-4 w-4 text-emerald-600" />
+                  <span>Панель СНО</span>
+                  <ChevronDown className="h-3 w-3 text-slate-400 group-hover/dropdown:rotate-180 transition-transform animate-pulse" />
                 </button>
-              );
-            })}
+                
+                <div className="absolute right-0 mt-1.5 w-60 bg-white border border-slate-200/90 shadow-xl rounded-2xl p-2 hidden group-hover/dropdown:block animate-fade-in z-50">
+                  {[
+                    { id: 'sno_active', label: 'Актив СНО', desc: 'Управление викторинами, начисление баллов', icon: Server },
+                    { id: 'admin_dashboard', label: 'Администратор', desc: 'Утверждение профилей БГЭУ, выгрузки БД', icon: Shield },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`w-full text-left flex items-start gap-2.5 p-2 rounded-xl text-xs transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-emerald-900 text-white shadow-sm'
+                            : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${isActive ? 'text-white' : 'text-emerald-700'}`} />
+                        <div className="flex flex-col">
+                          <span className="font-bold">{item.label}</span>
+                          <span className={`text-[10px] leading-snug mt-0.5 ${isActive ? 'text-emerald-100' : 'text-slate-405'}`}>{item.desc}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </nav>
         )}
 
@@ -127,14 +183,90 @@ export default function Header({ activeTab, setActiveTab, profile, onOpenSimulat
             </div>
           )}
 
-          {/* Quick Config Button for Simulator */}
-          <button
-            onClick={onOpenSimulator}
-            className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
-            title="Панель Симуляции"
-          >
-            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          </button>
+          {/* SNO Feed Notifications Bell */}
+          {isLoggedIn && (
+            <div className="relative">
+              <button
+                onClick={() => setIsNotifOpen(!isNotifOpen)}
+                className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-755 hover:bg-slate-100 transition-colors shrink-0 relative cursor-pointer"
+                title="Уведомления"
+              >
+                <Bell className="h-4 w-4 text-slate-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold font-sans animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification dropdown list */}
+              {isNotifOpen && (
+                <div className="absolute right-0 top-11 w-80 max-h-96 sm:w-96 bg-white border border-slate-200 shadow-xl rounded-2xl p-4 z-50 overflow-hidden flex flex-col space-y-3 animate-fade-in text-left">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Bell className="h-3.5 w-3.5 text-blue-900" />
+                      <span>Уведомления СНО</span>
+                    </h3>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={() => { clearNotifications(); setIsNotifOpen(false); }}
+                        className="text-[10px] text-slate-550 hover:text-rose-600 font-bold uppercase cursor-pointer flex items-center gap-1 bg-none border-none"
+                      >
+                        <Trash className="h-3 w-3" />
+                        Очистить все
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="overflow-y-auto space-y-2 flex-1 max-h-72 pr-1 select-text">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-slate-455 text-xs flex flex-col items-center justify-center space-y-1">
+                        <AlertCircle className="h-6 w-6 text-slate-300" />
+                        <p className="font-bold text-slate-700">Уведомлений пока нет</p>
+                        <p className="text-[10px] text-slate-400">Мы пришлем оповещения о новостях и приближении мероприятий!</p>
+                      </div>
+                    ) : (
+                      notifications.map(notif => (
+                        <div
+                          key={notif.id}
+                          onClick={() => markNotificationAsRead(notif.id)}
+                          className={`p-3 rounded-xl border text-xs transition-colors cursor-pointer flex flex-col space-y-1 relative group ${
+                            notif.read
+                              ? 'bg-slate-50/50 border-slate-150 text-slate-500'
+                              : 'bg-indigo-50/20 border-indigo-100/50 text-slate-900 hover:bg-indigo-50/40'
+                          }`}
+                        >
+                          {!notif.read && (
+                            <span className="absolute top-3 right-3 h-1.5 w-1.5 rounded-full bg-indigo-600"></span>
+                          )}
+                          <div className="flex items-start justify-between">
+                            <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                              notif.type === 'news' ? 'bg-blue-100 text-blue-800' :
+                              notif.type === 'event' ? 'bg-amber-100 text-amber-800' :
+                              notif.type === 'status_change' ? 'bg-purple-100 text-purple-800' :
+                              notif.type === 'reminder' ? 'bg-rose-100 text-rose-800' :
+                              'bg-slate-100 text-slate-800'
+                            }`}>
+                              {notif.type === 'news' ? 'Новость' :
+                               notif.type === 'event' ? 'Событие' :
+                               notif.type === 'status_change' ? 'Статус' :
+                               notif.type === 'reminder' ? 'Напоминание' :
+                               notif.type === 'registration' ? 'Заявка' : 'СНО'}
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-sans">{notif.date.split(' ')[0]}</span>
+                          </div>
+                          
+                          <p className="font-bold text-slate-900 pr-3">{notif.title}</p>
+                          <p className="text-[11px] text-slate-550 leading-relaxed font-sans">{notif.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
 

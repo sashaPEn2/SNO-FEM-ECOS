@@ -99,6 +99,29 @@ export interface TimelineItem {
   isReward?: boolean; // If it's a positive award / prize
 }
 
+export interface PushNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'news' | 'event' | 'registration' | 'status_change' | 'reminder';
+  date: string;
+  read: boolean;
+  eventId?: string;
+  newsId?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  iconName: string;
+  color: string;
+  requirement: string;
+  isUnlocked: boolean;
+  unlockedAt?: string;
+  progress?: { current: number; target: number };
+}
+
 export interface StudentFeedback {
   id: string;
   studentId: string;

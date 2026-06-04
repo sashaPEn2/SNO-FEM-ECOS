@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Calendar, MapPin, Users, Award, FileText, Check, AlertCircle, Sparkles, BookOpen, Trash2, ShieldCheck } from 'lucide-react';
 import { ScienceEvent, EventRegistration, StudentProfile } from '../types';
+import EventDetailPage from './EventDetailPage';
 
 interface CalendarSectionProps {
   events: ScienceEvent[];
@@ -28,14 +29,24 @@ export default function CalendarSection({
   const [formError, setFormError] = useState('');
   const [successInfo, setSuccessInfo] = useState<EventRegistration | null>(null);
 
+  if (selectedEvent) {
+    return (
+      <EventDetailPage
+        event={selectedEvent}
+        registrations={registrations}
+        profile={profile}
+        onRegisterEvent={onRegisterEvent}
+        onCancelRegistration={onCancelRegistration}
+        onBack={() => {
+          setSelectedEvent(null);
+          setSuccessInfo(null);
+        }}
+      />
+    );
+  }
+
   const handleOpenRegistration = (event: ScienceEvent) => {
-    setSelectedEvent(event);
-    setStudentName(profile.name);
-    setStudentGroup(profile.group);
-    setRole('listener');
-    setPaperTitle('');
-    setFormError('');
-    setSuccessInfo(null);
+    window.location.hash = `#/event/${event.id}`;
   };
 
   const handleRegisterSubmit = (e: FormEvent) => {
@@ -172,7 +183,10 @@ export default function CalendarSection({
                     </span>
                   </div>
 
-                  <h3 className="font-sans text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                  <h3 
+                    onClick={() => handleOpenRegistration(event)}
+                    className="font-sans text-base sm:text-lg font-bold text-slate-900 leading-snug cursor-pointer hover:text-blue-900 hover:underline transition-all"
+                  >
                     {event.title}
                   </h3>
 
@@ -337,246 +351,6 @@ export default function CalendarSection({
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Registration popup modal form */}
-      {selectedEvent && !successInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl border border-slate-100 flex flex-col">
-            <div className="p-6 bg-blue-950 text-white">
-              <span className="inline-block text-[10px] uppercase font-bold text-blue-300 tracking-wider">
-                Оформление регистрации
-              </span>
-              <h3 className="text-lg font-bold truncate mt-1">
-                {selectedEvent.title}
-              </h3>
-              <p className="text-xs text-blue-100 mt-1">
-                {selectedEvent.date} в {selectedEvent.time} | {selectedEvent.location}
-              </p>
-            </div>
-
-            <form onSubmit={handleRegisterSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              {formError && (
-                <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex items-center gap-2 text-xs text-red-700">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block">
-                  ФИО Участника:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-sm focus:border-blue-900 focus:outline-none"
-                  placeholder="Иванов Иван Иванович"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block">
-                    Академическая группа:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={studentGroup}
-                    onChange={(e) => setStudentGroup(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm focus:border-blue-900 focus:outline-none"
-                    placeholder="ДНЗ-1"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block">
-                    Положение студента:
-                  </label>
-                  <div className="w-full rounded-xl border border-slate-100 bg-slate-50 p-2.5 text-sm text-slate-600 font-semibold text-center">
-                    {profile.course}-й курс ФЭМ
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2 border-t border-slate-100 pt-3">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block">
-                  Формат научного участия:
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRole('listener')}
-                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                      role === 'listener'
-                        ? 'border-blue-900 bg-blue-50/50'
-                        : 'border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-slate-800 block">Слушатель</span>
-                    <span className="text-[10px] text-slate-500 mt-1">
-                      Очное присутствие, ведение научных дискуссий.
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-600 mt-2 block">
-                      +{selectedEvent.pointsForListener} баллов СНО
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => { setRole('speaker'); setPaperTitle(''); }}
-                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                      role === 'speaker'
-                        ? 'border-blue-900 bg-blue-50/50'
-                        : 'border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="text-xs font-bold text-slate-800 block">Докладчик</span>
-                    <span className="text-[10px] text-slate-500 mt-1">
-                      Публикация тезисов в РИНЦ сборнике БГЭУ.
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-600 mt-2 block">
-                      +{selectedEvent.pointsForSpeaker} баллов СНО
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {role === 'speaker' && (
-                <div className="space-y-1 border-t border-slate-200 pt-3 animate-fade-in">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wide block flex items-center justify-between">
-                    <span>Тема научного доклада:</span>
-                    <span className="text-[10px] text-amber-600 font-bold">Обязательно</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={paperTitle}
-                    onChange={(e) => setPaperTitle(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm focus:border-blue-900 focus:outline-none placeholder-slate-400"
-                    placeholder="Например: 'Перспективы развития циркулярной экономики в Республике Беларусь'"
-                  />
-                  <span className="text-[10px] text-slate-400 leading-tight block">
-                    Окончательная тема тезисов будет согласована с вашим научным руководителем при верификации.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setSelectedEvent(null)}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-blue-900 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-blue-850 transition-colors shadow-md shadow-blue-900/10"
-                >
-                  Зарегистрироваться
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Success slip popup on successful registration */}
-      {successInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl border border-slate-100 flex flex-col text-center">
-            <div className="p-6 bg-gradient-to-br from-emerald-600 to-teal-500 text-white flex flex-col items-center space-y-2">
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <Check className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="text-lg font-extrabold font-sans">
-                Регистрация успешна!
-              </h3>
-              <p className="text-xs text-emerald-50 max-w-[280px]">
-                Ваше участие зарегистрировано сотрудником СНО ФЭМ БГЭУ.
-              </p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5 text-xs text-left text-slate-600 font-sans">
-                <div>
-                  <span className="text-slate-400">Событие:</span>
-                  <p className="font-semibold text-slate-800 leading-tight">{successInfo.eventTitle}</p>
-                </div>
-                <div className="flex justify-between border-t border-slate-100/60 pt-1.5 mt-1.5">
-                  <span className="text-slate-400">Роль:</span>
-                  <span className="font-bold text-blue-900 uppercase">
-                    {successInfo.role === 'speaker' ? 'Докладчик' : 'Слушатель'}
-                  </span>
-                </div>
-                {successInfo.paperTitle && (
-                  <div className="border-t border-slate-100/60 pt-1.5 mt-1.5 bg-amber-50/50 p-2 rounded-lg">
-                    <span className="text-slate-400 block mb-0.5 text-[10px]">Тема:</span>
-                    <p className="text-[11px] text-slate-800 leading-tight italic">«{successInfo.paperTitle}»</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-slate-50 border border-slate-100 border-dashed rounded-xl p-3 flex flex-col items-center">
-                {/* Visual QR Simulator */}
-                <div className="h-24 w-24 bg-slate-900 flex flex-col p-2 space-y-1 opacity-90 rounded">
-                  <div className="text-[8px] font-mono text-emerald-400 text-center uppercase tracking-widest leading-none">
-                    BGEU CONF
-                  </div>
-                  <div className="grid grid-cols-5 gap-1 w-full h-full bg-slate-900 p-1">
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-slate-900"></div>
-                    <div className="bg-white"></div>
-                    <div className="bg-white"></div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono text-slate-400 mt-2 block select-all">
-                  Код билета: {successInfo.qrCodeValue}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    setSuccessInfo(null);
-                    setSelectedEvent(null);
-                    setActiveTab('my-tickets');
-                  }}
-                  className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 text-xs block transition-colors shadow"
-                >
-                  Перейти в мои билеты
-                </button>
-                <div className="text-[10px] text-slate-400 font-medium">
-                  Сохраните скриншот или покажите QR-код при входе в аудиторию.
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>

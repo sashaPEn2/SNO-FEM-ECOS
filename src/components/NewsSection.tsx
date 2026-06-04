@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Award, Heart, Eye, ArrowRight, Plus, Sparkles, AlertCircle } from 'lucide-react';
 import { NewsItem, StudentProfile } from '../types';
+import ArticleDetailPage from './ArticleDetailPage';
 
 interface NewsSectionProps {
   news: NewsItem[];
@@ -94,6 +95,18 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
         return { bg: 'bg-slate-50 text-slate-700 border-slate-200', label: 'Новость' };
     }
   };
+
+  if (activeArticle) {
+    return (
+      <ArticleDetailPage
+        article={activeArticle}
+        onBack={() => setActiveArticle(null)}
+        onLikeNews={onLikeNews}
+        newsList={news}
+        onOpenArticle={(item) => setActiveArticle(item)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in text-slate-800">
@@ -217,7 +230,7 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
                 {/* Footer section */}
                 <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                   <button
-                    onClick={() => setActiveArticle(item)}
+                    onClick={() => { window.location.hash = `#/news/${item.id}`; }}
                     className="flex items-center space-x-1.5 text-xs font-bold text-blue-900 hover:text-blue-700 transition-colors"
                   >
                     <span>Подробнее</span>
@@ -244,100 +257,7 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
         })}
       </div>
 
-      {/* Article Detail Modal */}
-      {activeArticle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
-            {/* Modal Image Header */}
-            <div className="relative h-60 bg-slate-100 flex-shrink-0">
-              <img
-                src={activeArticle.imageUrl}
-                alt={activeArticle.title}
-                className="h-full w-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-              <div className="absolute bottom-4 left-4 right-4 text-white">
-                <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-bold border mb-2 ${getCategoryTheme(activeArticle.category).bg} border-transparent bg-white/20 backdrop-blur-md text-white`}>
-                  {getCategoryTheme(activeArticle.category).label}
-                </span>
-                <h2 className="text-lg sm:text-xl font-display font-bold leading-snug">
-                  {activeArticle.title}
-                </h2>
-              </div>
-              <button
-                onClick={() => setActiveArticle(null)}
-                className="absolute top-4 right-4 h-8 w-8 rounded-full bg-slate-900/60 text-white hover:bg-slate-900/80 transition-colors flex items-center justify-center font-bold text-base border border-white/10"
-              >
-                ×
-              </button>
-            </div>
 
-            {/* Modal Content Column */}
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                <span>Опубликовано: {new Date(activeArticle.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                <div className="flex items-center space-x-2">
-                  <span>Просмотры: {activeArticle.views + 12}</span>
-                </div>
-              </div>
-
-              <div className="text-slate-700 leading-relaxed space-y-3 font-sans text-sm sm:text-base">
-                <p className="font-semibold text-slate-900 bg-slate-50 border-l-4 border-blue-900 p-3 italic rounded-r-xl">
-                  {activeArticle.summary}
-                </p>
-                {activeArticle.content.split('\n\n').map((paragraph, i) => (
-                  <p key={i}>{paragraph}</p>
-                ))}
-              </div>
-
-              {/* Tips for researchers */}
-              <div className="mt-6 border border-dashed border-blue-200 rounded-2xl bg-blue-50/50 p-4 space-y-2">
-                <div className="flex items-center space-x-2 text-blue-900">
-                  <Award className="h-5 w-5 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm font-bold uppercase tracking-wider font-display">Бонусы за активность от СНО:</span>
-                </div>
-                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1 font-sans">
-                  <li>За участие в качестве докладчика на этом событии вы получите <b>+100 баллов</b>.</li>
-                  <li>За статус обычного слушателя вы получите <b>+30 баллов</b>.</li>
-                  <li>Этого достаточно для быстрого получения справки-освобождения от занятий в магазине СНО!</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Modal actions */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-shrink-0">
-              <button
-                onClick={() => {
-                  onLikeNews(activeArticle.id);
-                  // Update current active reference
-                  setActiveArticle(prev => prev ? { ...prev, likes: prev.isLiked ? prev.likes - 1 : prev.likes + 1, isLiked: !prev.isLiked } : null);
-                }}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                  activeArticle.isLiked
-                    ? 'bg-pink-100 text-pink-600 border border-pink-200'
-                    : 'bg-white text-slate-650 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Heart className={`h-4 w-4 ${activeArticle.isLiked ? 'fill-pink-650' : ''}`} />
-                <span>Нравится ({activeArticle.likes})</span>
-              </button>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    setActiveArticle(null);
-                    onNavigateToTab('calendar');
-                  }}
-                  className="rounded-xl bg-blue-900 px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-blue-800 shadow transition-colors"
-                >
-                  Перейти к регистрации
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add News Item Modal */}
       {isAddingNews && (
