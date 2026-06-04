@@ -15,7 +15,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  signInWithPopup,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { StudentProfile, NewsItem, ScienceEvent, EventRegistration, ExemptionCertificate, Quiz, TimelineItem, StudentFeedback, SystemLog, PushNotification } from '../types';
@@ -39,6 +41,7 @@ interface FirebaseContextType {
   isLoading: boolean;
   isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<StudentProfile>;
+  loginWithGoogle: () => Promise<StudentProfile | null>;
   registerStudent: (profileData: Omit<StudentProfile, 'points' | 'exemptionCount'>, password: string) => Promise<StudentProfile>;
   logout: () => Promise<void>;
   likeNews: (newsId: string) => Promise<void>;
@@ -606,6 +609,68 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // GOOGLE SIGN-IN FUNCTION
+  const loginWithGoogle = async (): Promise<StudentProfile | null> => {
+    if (isSandboxActive) {
+      if (sbUsersList.length > 0) {
+        const firstUser = sbUsersList[0];
+        setSandboxUser(firstUser);
+        localStorage.setItem('sno_sandbox_user', JSON.stringify(firstUser));
+        return firstUser;
+      }
+      throw new Error("Нет доступных студентов для симуляции Google Входа.");
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      // Enforce selection of account to make it easily testable
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+      const userCredential = await signInWithPopup(auth, provider);
+      const firebaseUid = userCredential.user.uid;
+      const userEmail = userCredential.user.email || '';
+
+      // Check if user document already exists under users/{firebaseUid}
+      const userRef = doc(db, 'users', firebaseUid);
+      const profileSnap = await getDoc(userRef);
+
+      if (profileSnap.exists()) {
+        const prof = profileSnap.data() as StudentProfile;
+        setProfile(prof);
+        localStorage.setItem('sno_active_profile_id', firebaseUid);
+        return prof;
+      } else {
+        // Fallback: check if exists by email matching
+        const allUsersSnap = await getDocs(collection(db, 'users'));
+        let foundProfile: StudentProfile | null = null;
+        let matchedDocId = firebaseUid;
+        allUsersSnap.forEach(docSnap => {
+          const u = docSnap.data() as StudentProfile;
+          if (u.email?.toLowerCase().trim() === userEmail.toLowerCase().trim()) {
+            foundProfile = u;
+            matchedDocId = docSnap.id;
+          }
+        });
+
+        if (foundProfile) {
+          const prof = foundProfile as StudentProfile;
+          await setDoc(doc(db, 'users', firebaseUid), prof);
+          setProfile(prof);
+          localStorage.setItem('sno_active_profile_id', firebaseUid);
+          return prof;
+        }
+
+        // Return null if Google authenticated, but no matching profile in Firestore
+        // We will prompt them to complete registration in AuthSection
+        return null;
+      }
+    } catch (error: any) {
+      console.error(error);
+      throw error;
+    }
+  };
+
   // REGISTER FUNCTION
   const registerStudent = async (
     profileData: Omit<StudentProfile, 'points' | 'exemptionCount'>,
@@ -678,9 +743,17 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         throw new Error(`Студент с E-mail адресом ${emailNormalized} уже зарегистрирован!`);
       }
 
-      // Create new authentic account in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, emailNormalized, password);
-      const firebaseUid = userCredential.user.uid;
+      let firebaseUid = '';
+      let authenticatedUser = currentUser;
+
+      if (currentUser && currentUser.email?.toLowerCase().trim() === emailNormalized) {
+        firebaseUid = currentUser.uid;
+      } else {
+        // Create new authentic account in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, emailNormalized, password);
+        firebaseUid = userCredential.user.uid;
+        authenticatedUser = userCredential.user;
+      }
 
       // Draft profile payload
       const finalProfile: StudentProfile = {
@@ -710,7 +783,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       await setDoc(timelineRef, initTimelineItem);
 
       // Set active session context
-      setCurrentUser(userCredential.user);
+      setCurrentUser(authenticatedUser);
       setProfile(finalProfile);
       localStorage.setItem('sno_active_profile_id', firebaseUid);
 
@@ -1849,6 +1922,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       isAuthLoading,
       login,
+      loginWithGoogle,
       registerStudent,
       logout,
       likeNews,

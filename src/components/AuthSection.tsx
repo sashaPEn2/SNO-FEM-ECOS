@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StudentProfile } from '../types';
 import { GraduationCap, ShieldCheck, UserCheck, Lock, Mail, Users, BookOpen, Key, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useFirebase } from '../context/FirebaseContext';
+import { auth } from '../firebase';
 
 interface AuthSectionProps {
   onLogin: (profile: StudentProfile) => void;
@@ -10,7 +11,7 @@ interface AuthSectionProps {
 }
 
 export default function AuthSection({ onLogin, registeredUsers, onRegister }: AuthSectionProps) {
-  const { login, registerStudent } = useFirebase();
+  const { login, loginWithGoogle, registerStudent, currentUser } = useFirebase();
   const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,6 +27,40 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
   const [syncMessage, setSyncMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+    setSyncMessage('Авторизация через аккаунт Google в облаке...');
+
+    try {
+      const profileResult = await loginWithGoogle();
+      if (profileResult) {
+        setSuccess('Вход через Google выполнен успешно!');
+        setTimeout(() => {
+          setIsLoading(false);
+          onLogin(profileResult);
+        }, 800);
+      } else {
+        setSuccess('Вы вошли во временную сессию Google! Пожалуйста, завершите регистрацию вашего студенческого дела SNO.');
+        setIsLoginMode(false);
+        setIsLoading(false);
+        // Pre-fill fields from Google account dynamically
+        if (auth.currentUser) {
+          if (auth.currentUser.email) setEmail(auth.currentUser.email);
+          if (auth.currentUser.displayName) setName(auth.currentUser.displayName);
+        }
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      let errorMsg = 'Не удалось авторизоваться через Google. Попробуйте еще раз.';
+      if (err.message) {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +92,10 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
     setError('');
     setSuccess('');
 
-    if (!name || !group || !studentId || !email || !password) {
+    const isGoogleAuth = currentUser && currentUser.email?.toLowerCase().trim() === email.trim().toLowerCase();
+    const resolvedPassword = isGoogleAuth ? 'google-auth-user' : password;
+
+    if (!name || !group || !studentId || !email || (!isGoogleAuth && !password)) {
       setError('Пожалуйста, заполните все обязательные поля.');
       return;
     }
@@ -81,7 +119,7 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
         email: email.trim(),
         isBudget,
         phone: phone.trim() || '+375 (29) 111-22-33'
-      }, password);
+      }, resolvedPassword);
 
       onRegister(newProfile);
       setSuccess('Регистрация прошла успешно! Вы будете авторизованы автоматом.');
@@ -100,6 +138,8 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
       setError(errorMsg);
     }
   };
+
+  const isGoogleSignup = currentUser && currentUser.email?.toLowerCase().trim() === email.trim().toLowerCase();
 
   return (
     <div className={`${isLoginMode ? 'max-w-md' : 'max-w-3xl'} mx-auto my-8 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden relative transition-all duration-300 ease-in-out`}>
@@ -135,6 +175,7 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
         <button
           type="button"
           onClick={() => { setIsLoginMode(false); setError(''); setSuccess(''); }}
+          style={{ paddingTop: '10px', marginLeft: '7px', marginTop: '0px', paddingBottom: '10px', paddingRight: '0px', marginRight: '11px', marginBottom: '0px' }}
           className={`flex-1 py-2.5 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer ${
             !isLoginMode 
               ? 'bg-blue-900 text-white shadow-sm' 
@@ -217,7 +258,50 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
               )}
             </button>
 
-            <div className="text-center pt-2">
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-slate-200"></div>
+              <span className="flex-shrink mx-4 text-slate-400 text-xs font-semibold uppercase tracking-wider">или</span>
+              <div className="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold transition-all flex items-center justify-center space-x-2.5 active:scale-95 cursor-pointer shadow-sm disabled:opacity-70"
+            >
+              <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 01-2.45 3.71v3.08h3.95c2.31-2.13 3.63-5.26 3.63-8.64z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.95-3.08c-1.1.74-2.5 1.18-3.98 1.18-3.07 0-5.67-2.08-6.6-4.88H1.35v3.18A11.96 11.96 0 0012 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.4 14.31a7.19 7.19 0 010-4.62V6.51H1.35a11.97 11.97 0 000 10.98l4.05-3.18z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0 7.33 0 3.28 2.68 1.35 6.51l4.05 3.18c.93-2.8 3.53-4.94 6.6-4.94z"
+                />
+              </svg>
+              <span>Войти через Google</span>
+            </button>
+
+            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-[11px] text-slate-500 space-y-1">
+              <p className="font-semibold text-blue-900">💡 Как настроить Email/Пароль?</p>
+              <p>
+                Если вы используете собственный проект Firebase, включите провайдер <strong>«Email/Password»</strong> в разделе <strong>Firebase Console &rarr; Build &rarr; Authentication &rarr; Sign-in method</strong>.
+              </p>
+              <p className="text-slate-400 font-medium">
+                Если вы работаете в тестовой песочнице, удобнее всего войти в систему в один клик кнопкой <strong>«Войти через Google»</strong>!
+              </p>
+            </div>
+
+            <div className="text-center pt-1">
               <span className="text-[11px] text-slate-400 font-medium">
                 Первый раз здесь? Выберите вкладку «Регистрация» выше.
               </span>
@@ -342,8 +426,13 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
 
               {/* Email */}
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-705 uppercase tracking-wider mb-1">
-                  E-mail адрес *
+                <label className="block text-xs font-bold text-slate-705 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>E-mail адрес *</span>
+                  {isGoogleSignup && (
+                    <span className="text-[10px] text-emerald-600 normal-case font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Подтвержден Google
+                    </span>
+                  )}
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-450" />
@@ -353,30 +442,34 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
                     placeholder="daria@bseu.by"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-slate-900 transition-all text-sm placeholder-slate-400"
+                    disabled={isLoading || isGoogleSignup}
+                    className={`w-full pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-slate-900 transition-all text-sm placeholder-slate-400 ${
+                      isGoogleSignup ? 'bg-slate-100 border-slate-300 select-none text-slate-500 cursor-not-allowed' : 'bg-slate-50 border border-slate-200'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Password */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Пароль учетной записи *
-                </label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-450" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-slate-900 transition-all text-sm placeholder-slate-400"
-                  />
+              {!isGoogleSignup && (
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Пароль учетной записи *
+                  </label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-450" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoading}
+                      className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white text-slate-900 transition-all text-sm placeholder-slate-400"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <button
