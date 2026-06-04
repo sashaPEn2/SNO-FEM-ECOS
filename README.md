@@ -1,134 +1,20 @@
-# SNO FEM ECOS - Экосистема студенческого научного общества
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Веб-приложение для управления мероприятиями, регистрацией участников и системой награждения.
+# Run and deploy your AI Studio app
 
-## 🎯 Основной функционал
+This contains everything you need to run your app locally.
 
-- **Система аутентификации и авторизации** через JWT
-- **Создание и управление мероприятиями** 
-- **Регистрация участников** на события
-- **Система баллов** за участие в мероприятиях
-- **Система награждения**:
-  - Сертификаты/грамоты
-  - Другие награды (по настройке)
-- **Рейтинг участников** по количеству баллов
-- **Уведомления** о новых мероприятиях
-- **Обсуждение** мероприятий (комментарии)
-- **Экспорт сертификатов** в PDF
-- **Интеграция с календарем** (iCal)
+View your app in AI Studio: https://ai.studio/apps/751a52ca-eacd-4040-9605-bb4ae7547116
 
-## 🛠️ Технологический стек
+## Run Locally
 
-### Backend
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **БД**: MongoDB
-- **Аутентификация**: JWT (jsonwebtoken)
-- **Валидация**: Joi
-- **Email**: Nodemailer
-- **PDF**: pdfkit
+**Prerequisites:**  Node.js
 
-### Frontend
-- **Framework**: Vue.js 3
-- **Build**: Vite
-- **UI Components**: Vuetify
-- **HTTP Client**: Axios
-- **State Management**: Pinia
-- **Calendar**: Vue Calendar
 
-## 📁 Структура проекта
-
-```
-SNO-FEM-ECOS/
-├── server/                 # Backend приложение
-│   ├── models/            # MongoDB модели
-│   ├── routes/            # API маршруты
-│   ├── controllers/        # Бизнес-логика
-│   ├── middleware/         # Middleware (auth, validation)
-│   ├── utils/             # Утилиты (email, pdf, jwt)
-│   ├── config/            # Конфигурация
-│   ├── .env.example       # Пример переменных окружения
-│   └── index.js           # Точка входа
-├── client/                 # Frontend приложение
-│   ├── src/
-│   │   ├── components/    # Vue компоненты
-│   │   ├── pages/         # Страницы
-│   │   ├── stores/        # Pinia stores
-│   │   ├── composables/   # Composables
-│   │   ├── utils/         # Утилиты
-│   │   ├── App.vue
-│   │   └── main.js
-│   ├── public/            # Статические файлы
-│   └── vite.config.js
-└── docs/                  # Документация API
-```
-
-## 🚀 Установка и запуск
-
-### Требования
-- Node.js 16+
-- MongoDB локально или в облаке (MongoDB Atlas)
-
-### Установка
-
-```bash
-# Установить все зависимости
-npm run install-all
-```
-
-### Запуск в режиме разработки
-
-```bash
-npm run dev
-```
-
-Это запустит одновременно:
-- Backend на http://localhost:5000
-- Frontend на http://localhost:5173
-
-### Запуск в режиме production
-
-```bash
-npm run build
-npm start
-```
-
-## 📋 API документация
-
-Смотрите [docs/API.md](docs/API.md)
-
-## 🗄️ Модели данных
-
-- **User** - Пользователь (студент/администратор)
-- **Event** - Мероприятие
-- **Registration** - Регистрация на событие
-- **Point** - История начисления баллов
-- **Reward** - Награды и сертификаты
-- **Comment** - Комментарии к событиям
-- **Notification** - Уведомления
-
-## 🎓 Система баллов
-
-Баллы начисляются за:
-- **Посещение мероприятия**: 10 баллов
-- **Выступление на мероприятии**: 20 баллов
-- **Организация мероприятия**: 30 баллов
-
-Баллы можно обменять на:
-- Сертификаты (50 баллов)
-- Грамоты (100 баллов)
-- Приоритет при отборе в проекты (200 баллов)
-
-## 🤝 Роли
-
-- **User** - Обычный пользователь (студент)
-- **Organizer** - Организатор (может создавать события)
-- **Admin** - Администратор (управляет всеми данными и системой)
-
-## 📝 Переменные окружения
-
-Смотрите [server/.env.example](server/.env.example)
-
-## 📞 Контакты и поддержка
-
-По вопросам и предложениям пишите в Issues.
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
