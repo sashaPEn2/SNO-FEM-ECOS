@@ -325,7 +325,7 @@ export default function ArticleDetailPage({ article, onBack, onLikeNews, newsLis
                 />
                 <input
                   type="text"
-                  placeholder="Академическая группа или Кафедра"
+                  placeholder="Учебная группа или Кафедра"
                   value={academicGroup}
                   onChange={(e) => setAcademicGroup(e.target.value)}
                   className="w-full text-xs font-semibold bg-white border border-slate-200 p-2.5 rounded-xl focus:border-blue-900 focus:outline-none"

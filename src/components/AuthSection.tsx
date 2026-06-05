@@ -259,41 +259,6 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
               )}
             </button>
 
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-slate-200"></div>
-              <span className="flex-shrink mx-4 text-slate-400 text-xs font-semibold uppercase tracking-wider">или</span>
-              <div className="flex-grow border-t border-slate-200"></div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={isLoading}
-              className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold transition-all flex items-center justify-center space-x-2.5 active:scale-95 cursor-pointer shadow-sm disabled:opacity-70"
-            >
-              <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 01-2.45 3.71v3.08h3.95c2.31-2.13 3.63-5.26 3.63-8.64z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.95-3.08c-1.1.74-2.5 1.18-3.98 1.18-3.07 0-5.67-2.08-6.6-4.88H1.35v3.18A11.96 11.96 0 0012 24z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.4 14.31a7.19 7.19 0 010-4.62V6.51H1.35a11.97 11.97 0 000 10.98l4.05-3.18z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0 7.33 0 3.28 2.68 1.35 6.51l4.05 3.18c.93-2.8 3.53-4.94 6.6-4.94z"
-                />
-              </svg>
-              <span>Войти через Google</span>
-            </button>
-
-
-
             <div className="text-center pt-1">
               <span className="text-[11px] text-slate-400 font-medium">
                 Первый раз здесь? Выберите вкладку «Регистрация» выше.

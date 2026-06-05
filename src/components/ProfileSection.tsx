@@ -6,7 +6,7 @@ import {
   User, Mail, Phone, Hash, Award, Trophy, BookOpen, GraduationCap, 
   Sparkles, Calendar, BookCheck, ClipboardList, PenTool, Edit3, 
   CheckCircle, ArrowUpRight, TrendingUp, HelpCircle, FileSpreadsheet,
-  AlertCircle
+  AlertCircle, ShoppingBag, Gift, Briefcase, Loader2
 } from 'lucide-react';
 import { 
   ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line 
@@ -20,7 +20,8 @@ export default function ProfileSection() {
     completedQuizzes, 
     certificates,
     updateStudentProfileFromAdmin,
-    isSandboxActive
+    isSandboxActive,
+    purchaseExemption
   } = useFirebase();
 
   // Exemption Certificates States
@@ -181,7 +182,27 @@ export default function ProfileSection() {
       
       doc.text(`За научную деятельность начислено и зачтено ${cert.pointsDeducted} баллов СНО БГЭУ.`, 148.5, y, { align: 'center' });
       y += 5.5;
-      doc.text(`Данная работа является официальным основанием для освобождения от занятий на период: ${exemptionPeriod}`, 148.5, y, { align: 'center' });
+
+      const reasonLower = cert.reason ? cert.reason.toLowerCase() : '';
+      if (reasonLower.includes('мерч') || reasonLower.includes('худи') || reasonLower.includes('значок') || reasonLower.includes('толстовка')) {
+        doc.text('Данный купон-сертификат является официальным основанием для получения фирменного мерча', 148.5, y, { align: 'center' });
+        y += 5;
+        doc.text('научного общества в кабинете СНО ФЭМ БГЭУ при предъявлении QR-кода/Проверочного хэша.', 148.5, y, { align: 'center' });
+      } else if (reasonLower.includes('ринц') || reasonLower.includes('публикац') || reasonLower.includes('стать')) {
+        doc.text('Данный документ подтверждает право на приоритетную публикацию научной работы', 148.5, y, { align: 'center' });
+        y += 5;
+        doc.text('в ежегодном сборнике научных материалов СНО ФЭМ с занесением в базу цитирования РИНЦ.', 148.5, y, { align: 'center' });
+      } else if (reasonLower.includes('библиот') || reasonLower.includes('абонемент') || reasonLower.includes('баз')) {
+        doc.text('Данное свидетельство предоставляет право на VIP-пользование научным залом', 148.5, y, { align: 'center' });
+        y += 5;
+        doc.text(`и приоритетный доступ к исследовательским базам аналитических материалов на период: ${exemptionPeriod}`, 148.5, y, { align: 'center' });
+      } else if (reasonLower.includes('коучинг') || reasonLower.includes('письмо') || reasonLower.includes('рекомендател')) {
+        doc.text('Свидетельство подтверждает прохождение карьерной сессии с предоставлением официального', 148.5, y, { align: 'center' });
+        y += 5;
+        doc.text('рекомендательного письма от лица деканата факультета экономики и менеджмента БГЭУ.', 148.5, y, { align: 'center' });
+      } else {
+        doc.text(`Данная работа является официальным основанием для освобождения от занятий на период: ${exemptionPeriod}`, 148.5, y, { align: 'center' });
+      }
 
       y = 158;
       doc.setFillColor(248, 250, 252);
@@ -228,6 +249,104 @@ export default function ProfileSection() {
     } finally {
       setDownloadingCertId(null);
       setIsDownloadingAny(false);
+    }
+  };
+
+  // Shop declarations and states
+  const SHOP_ITEMS = [
+    {
+      id: 'exemption',
+      title: 'Освобождение от учебных занятий',
+      description: 'Официальная справка-обоснование СНО ФЭМ БГЭУ для деканата об уважительной причине пропуска.',
+      cost: 100,
+      iconName: 'exemption',
+      longDescription: 'Официальный бланк-сертификат СНО ФЭМ БГЭУ, согласованный с председателем СНО и деканатом факультета экономики и менеджмента. Позволяет официально обосновать отсутствие на аудиторных занятиях на выбранный период за счет высокой научной активности.'
+    },
+    {
+      id: 'merch',
+      title: 'Фирменный научный мерч СНО БГЭУ',
+      description: 'Качественное трикотажное оверсайз-худи СНО ФЭМ или набор металлических значков исследователя БГЭУ.',
+      cost: 185,
+      iconName: 'merch',
+      longDescription: 'Премиальное брендированное лимитированное худи SNO Economics (оверсайз) или набор из 3 стильных металлических пинов и блокнота исследователя БГЭУ. Подарок выдается в кабинете СНО ФЭМ при предъявлении QR-кода верифицированного купона.'
+    },
+    {
+      id: 'publication',
+      title: 'Ускоренная публикация в РИНЦ',
+      description: 'Гарантированное продвинутое рецензирование и публикация статьи в сборнике научных трудов FEM Research.',
+      cost: 250,
+      iconName: 'publication',
+      longDescription: 'Внеочередное двойное слепое рецензирование оргкомитетом СНО ФЭМ БГЭУ и гарантированное включение вашей научной работы в ежегодный сборник научных материалов с индексацией в базе РИНЦ (Российский индекс научного цитирования), минуя общий рейтинг конкурса.'
+    },
+    {
+      id: 'library',
+      title: 'VIP-абонемент научной библиотеки БГЭУ',
+      description: 'Приоритетный доступ к бронированию коворкинг-комнат и закрытым подпискам финансовой аналитики.',
+      cost: 75,
+      iconName: 'library',
+      longDescription: 'Индивидуальный читательский пропуск повышенного уровня. Дает возможность優先-резервации уединенных комнат научной библиотеки для групповых экономических исследований и бесплатный доступ к закрытым базам данных аналитических материалов.'
+    },
+    {
+      id: 'coach',
+      title: 'Рекомендательное письмо & Коучинг',
+      description: 'Официальное письмо-согласие от руководства факультета для работодателя и 2 часа личного карьерного менторинга.',
+      cost: 150,
+      iconName: 'coach',
+      longDescription: 'Индивидуальное рекомендательное письмо с печатью деканата и подписью декана ФЭМ для соискания стипендий, грантов или престижного трудоустройства, а также двухчасовая сессия по личному карьерному треку от ведущего профессора.'
+    }
+  ];
+
+  const [selectedShopItem, setSelectedShopItem] = useState<any | null>(null);
+  const [purchaseDetails, setPurchaseDetails] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purchaseEndDate, setPurchaseEndDate] = useState('');
+  const [exchangeError, setExchangeError] = useState('');
+  const [exchangeSuccess, setExchangeSuccess] = useState(false);
+  const [isExchangeLoading, setIsExchangeLoading] = useState(false);
+
+  const handleExchangePoints = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setExchangeError('');
+    setExchangeSuccess(false);
+
+    if (!selectedShopItem) return;
+
+    if (profile.points < selectedShopItem.cost) {
+      setExchangeError(`Недостаточно баллов на вашем балансе. Требуется: ${selectedShopItem.cost}, у вас: ${profile.points}`);
+      return;
+    }
+
+    setIsExchangeLoading(true);
+    try {
+      // Create a nice detail string representing their selection/dates
+      let finalReason = selectedShopItem.title;
+      if (purchaseDetails.trim()) {
+        finalReason += ` (${purchaseDetails.trim()})`;
+      }
+
+      await purchaseExemption({
+        studentName: profile.name,
+        studentGroup: profile.group,
+        targetExemptionDate: purchaseDate,
+        endDate: purchaseEndDate || purchaseDate,
+        reason: finalReason,
+        pointsDeducted: selectedShopItem.cost,
+        course: profile.course,
+        isBudget: profile.isBudget !== false,
+        phone: profile.phone || '',
+      });
+
+      setExchangeSuccess(true);
+      setPurchaseDetails('');
+      setPurchaseEndDate('');
+      setTimeout(() => {
+        setSelectedShopItem(null);
+        setExchangeSuccess(false);
+      }, 2500);
+    } catch (err: any) {
+      setExchangeError('Ошибка при проведении обмена: ' + err.message);
+    } finally {
+      setIsExchangeLoading(false);
     }
   };
 
@@ -410,7 +529,7 @@ export default function ProfileSection() {
               {profile.name}
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed">
-              Зачетная книжка: <b className="font-mono text-indigo-200">{profile.studentId}</b> • Курс: <b className="text-white">{profile.course}</b> • Академическая группа: <b className="text-white">{profile.group}</b>
+              Зачетная книжка: <b className="font-mono text-indigo-200">{profile.studentId}</b> • Курс: <b className="text-white">{profile.course}</b> • Учебная группа: <b className="text-white">{profile.group}</b>
             </p>
           </div>
 
@@ -748,6 +867,226 @@ export default function ProfileSection() {
             );
           })}
         </div>
+      </div>
+
+      {/* SNO FEM Scientific Privilege Shop Section */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-md space-y-6">
+        <div className="space-y-1 border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+              <ShoppingBag className="h-5.5 w-5.5 text-blue-900" />
+              <span>Магазин научных привилегий СНО ФЭМ</span>
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              Накапливайте академические баллы за активность и обменивайте их на уникальные университетские бонусы и мерч.
+            </p>
+          </div>
+          <div className="text-xs font-semibold text-slate-500 bg-amber-50/70 text-amber-900 px-3 py-1.5 rounded-xl border border-amber-100/70 shrink-0 self-start sm:self-auto flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+            <span>Ваш баланс: <b>{profile.points}</b> баллов</span>
+          </div>
+        </div>
+
+        {/* Shop Items Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {SHOP_ITEMS.map((item) => {
+            const isAffordable = profile.points >= item.cost;
+            const isSelected = selectedShopItem?.id === item.id;
+            
+            // Icon Selector Helper
+            const getItemIcon = (iconName: string) => {
+              switch (iconName) {
+                case 'exemption': return <Calendar className="h-5.5 w-5.5 text-blue-900" />;
+                case 'merch': return <Gift className="h-5.5 w-5.5 text-rose-500" />;
+                case 'publication': return <Award className="h-5.5 w-5.5 text-emerald-600" />;
+                case 'library': return <BookCheck className="h-5.5 w-5.5 text-indigo-600" />;
+                case 'coach': return <Briefcase className="h-5.5 w-5.5 text-amber-600" />;
+                default: return <Gift className="h-5.5 w-5.5 text-slate-500" />;
+              }
+            };
+
+            return (
+              <div 
+                key={item.id}
+                className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 relative overflow-hidden group ${
+                  isSelected 
+                    ? 'ring-2 ring-blue-900 border-blue-200 bg-blue-50/10'
+                    : 'bg-gradient-to-br from-white to-slate-50/40 border-slate-200 hover:shadow-md'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
+                      {getItemIcon(item.iconName)}
+                    </div>
+                    <span className="font-mono text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-150 flex items-center gap-1 shrink-0">
+                      <Sparkles className="h-3 w-3 text-amber-500" />
+                      {item.cost} баллов
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-930 group-hover:text-blue-900 transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="text-[11px] leading-relaxed text-slate-505 mt-1.5 line-clamp-3">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedShopItem(null);
+                      } else {
+                        setSelectedShopItem(item);
+                        setExchangeError('');
+                        setExchangeSuccess(false);
+                      }
+                    }}
+                    className={`text-xs font-bold py-1.5 px-3 rounded-lg border transition-all flex items-center gap-1 select-none cursor-pointer ${
+                      isSelected 
+                        ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 border-slate-300'
+                        : isAffordable
+                          ? 'bg-blue-900 text-white hover:bg-blue-950 border-blue-900 hover:shadow shadow-sm'
+                          : 'bg-slate-100 text-slate-400 border-slate-220 cursor-not-allowed'
+                    }`}
+                  >
+                    {isSelected ? 'Свернуть' : 'Обменять'}
+                  </button>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase font-mono tracking-wide">
+                    {isAffordable ? 'Доступно' : `Нужно еще ${item.cost - profile.points}`}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Selected Shop Item details and checkout form */}
+        {selectedShopItem && (
+          <div className="bg-gradient-to-br from-slate-50 to-blue-50/20 border border-blue-105 rounded-2xl p-5 sm:p-6 space-y-4 animate-fade-in text-slate-800">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60">
+              <span className="p-1 px-2.5 bg-amber-200/50 text-amber-950 font-bold text-[10px] sm:text-xs rounded-full uppercase tracking-wider border border-amber-300">Шаг 2: Подтверждение обмена</span>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                {selectedShopItem.title}
+              </h3>
+            </div>
+
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-sans">
+              {selectedShopItem.longDescription}
+            </p>
+
+            <form onSubmit={handleExchangePoints} className="space-y-4 pt-2">
+              {exchangeError && (
+                <div className="p-3 bg-red-50 text-red-800 text-xs rounded-xl flex items-center gap-1.5 border border-red-150 animate-fade-in font-semibold">
+                  <AlertCircle className="h-4 w-4 text-red-650 shrink-0" />
+                  <span>{exchangeError}</span>
+                </div>
+              )}
+
+              {exchangeSuccess && (
+                <div className="p-4 bg-emerald-50 text-emerald-800 text-xs sm:text-sm rounded-xl flex items-center gap-2 border border-emerald-205 animate-fade-in">
+                  <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-bold">Обмен выполнен успешно!</p>
+                    <p className="text-slate-500 font-medium text-xs mt-0.5">Вам успешно начислена привилегия. Скачать официальный купон-сертификат с QR-кодом для подтверждения вы можете в подразделе «Мои Сертификаты и Справки Обоснования» ниже.</p>
+                  </div>
+                </div>
+              )}
+
+              {!exchangeSuccess && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Dynamic field 1: details */}
+                  <div className="space-y-1 text-xs">
+                    <label className="font-bold text-slate-500 uppercase tracking-wide block">
+                      {selectedShopItem.id === 'exemption' && 'Причина пропуска занятий (Обоснование) *'}
+                      {selectedShopItem.id === 'merch' && 'Выберите подарок и размер (например: оверсайз-худи, размер M) *'}
+                      {selectedShopItem.id === 'publication' && 'Укажите название статьи или тему исследования *'}
+                      {selectedShopItem.id === 'library' && 'Комментарий (для какого исследования нужен доступ) *'}
+                      {selectedShopItem.id === 'coach' && 'Сфера интересов для коучинга (например: Big Data, Маркетинг) *'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={purchaseDetails}
+                      onChange={(e) => setPurchaseDetails(e.target.value)}
+                      placeholder={
+                        selectedShopItem.id === 'exemption' ? 'Докладчик на СНО ФЭМ БГЭУ' :
+                        selectedShopItem.id === 'merch' ? 'Худи "SNO Science", размер L' :
+                        selectedShopItem.id === 'publication' ? 'Цифровая трансформация рынков РБ' :
+                        selectedShopItem.id === 'library' ? 'Статистические архивы БГЭУ за 2025 г.' : 
+                        'Финансовый консалтинг и банковский аудит'
+                      }
+                      className="w-full text-xs sm:text-sm rounded-xl border border-slate-205 p-2.5 font-semibold focus:border-blue-900 focus:outline-none bg-white text-slate-800"
+                    />
+                  </div>
+
+                  {/* Dynamic field 2: date */}
+                  <div className="space-y-1 text-xs">
+                    <label className="font-bold text-slate-500 uppercase tracking-wide block">
+                      {selectedShopItem.id === 'exemption' ? 'Дата пропуска занятий (или начало периода) *' : 'Желаемая дата активации привилегии *'}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        required
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        className="w-full text-xs rounded-xl border border-slate-205 p-2.5 font-semibold focus:border-blue-900 focus:outline-none bg-white font-mono"
+                      />
+                      {/* Only show end exemption date for class exemption */}
+                      {selectedShopItem.id === 'exemption' ? (
+                        <input
+                          type="date"
+                          placeholder="Дата окончания (необяз.)"
+                          value={purchaseEndDate}
+                          onChange={(e) => setPurchaseEndDate(e.target.value)}
+                          className="w-full text-xs rounded-xl border border-slate-205 p-2.5 font-semibold focus:border-blue-900 focus:outline-none bg-white font-mono"
+                        />
+                      ) : (
+                        <div className="text-[10px] text-slate-400 bg-slate-100 flex items-center justify-center p-2 rounded-xl italic font-medium leading-tight">
+                          Действует бессрочно
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!exchangeSuccess && (
+                <div className="pt-3 border-t border-slate-200/50 flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={isExchangeLoading || profile.points < selectedShopItem.cost}
+                    className="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 hover:text-black rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer border-none disabled:opacity-55 disabled:cursor-not-allowed select-none"
+                  >
+                    {isExchangeLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                        <span>Обработка запроса...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 shrink-0 animate-pulse text-amber-950" />
+                        <span>Списать {selectedShopItem.cost} баллов и получить привилегию</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedShopItem(null)}
+                    className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-800 border border-slate-200 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
+                  >
+                    Отменить
+                  </button>
+                </div>
+              )}
+            </form>
+          </div>
+        )}
       </div>
 
       {/* Certificates Section */}

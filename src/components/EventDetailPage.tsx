@@ -46,7 +46,7 @@ export default function EventDetailPage({
       return;
     }
     if (!studentGroup.trim()) {
-      setFormError('Пожалуйста, укажите академическую группу');
+      setFormError('Пожалуйста, укажите учебную группу');
       return;
     }
     if (role === 'speaker' && !paperTitle.trim()) {

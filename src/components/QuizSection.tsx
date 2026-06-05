@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Award, CheckCircle2, XCircle, ChevronRight, HelpCircle, RefreshCw, Trophy, Sparkles, ShieldAlert } from 'lucide-react';
-import { Quiz, QuizQuestion } from '../types';
+import { Award, CheckCircle2, XCircle, ChevronRight, HelpCircle, RefreshCw, Trophy, Sparkles, ShieldAlert, Download, Loader2 } from 'lucide-react';
+import { Quiz, QuizQuestion, StudentProfile } from '../types';
+import { jsPDF } from 'jspdf';
 
 interface QuizSectionProps {
   quizzes: Quiz[];
   onAddPoints: (points: number, reason: string) => void;
   completedQuizIds: Record<string, number>; // quizId -> score
   onCompleteQuiz: (quizId: string, score: number) => void;
+  profile?: StudentProfile | null;
 }
 
 export default function QuizSection({
@@ -14,6 +16,7 @@ export default function QuizSection({
   onAddPoints,
   completedQuizIds,
   onCompleteQuiz,
+  profile,
 }: QuizSectionProps) {
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(0);
@@ -22,6 +25,206 @@ export default function QuizSection({
   const [correctAnswersCount, setCorrectAnswersCount] = useState<number>(0);
   const [quizFinished, setQuizFinished] = useState<boolean>(false);
   const [earnedPointsThisRun, setEarnedPointsThisRun] = useState<number>(0);
+  const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
+
+  // Helper function to fetch font as base64 with mirrors/fallbacks
+  const getFontBase64WithFallbacks = async (urls: string[]): Promise<string> => {
+    let lastError: Error | null = null;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP status ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Convert arrayBuffer to base64
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+      } catch (err) {
+        console.warn(`Font fetch failed for ${url}. Trying next available fallback...`, err);
+        lastError = err as Error;
+      }
+    }
+    throw lastError || new Error('No URLs provided');
+  };
+
+  const handleDownloadQuizCertificate = async (quiz: Quiz, score: number) => {
+    setDownloadingCertId(quiz.id);
+    try {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // High-availability mirrors to load Roboto with Cyrillic support
+      const REGULAR_FONT_URLS = [
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf',
+        'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf',
+        'https://unpkg.com/pdfmake@0.1.66/build/fonts/Roboto/Roboto-Regular.ttf',
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/static/Roboto-Regular.ttf'
+      ];
+
+      const BOLD_FONT_URLS = [
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/static/Roboto-Bold.ttf',
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Medium.ttf',
+        'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf',
+        'https://unpkg.com/pdfmake@0.1.66/build/fonts/Roboto/Roboto-Medium.ttf'
+      ];
+
+      try {
+        const [reg64, bold64] = await Promise.all([
+          getFontBase64WithFallbacks(REGULAR_FONT_URLS),
+          getFontBase64WithFallbacks(BOLD_FONT_URLS)
+        ]);
+
+        doc.addFileToVFS('Roboto-Regular.ttf', reg64);
+        doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+
+        doc.addFileToVFS('Roboto-Bold.ttf', bold64);
+        doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+
+        doc.setFont('Roboto', 'normal');
+      } catch (fontErr) {
+        console.error('Could not load Cyrillic fonts from any online CDN', fontErr);
+      }
+
+      // Border & Frame (Landscape size is 297mm x 210mm)
+      doc.setDrawColor(30, 41, 59); // slate-800
+      doc.setLineWidth(1.5);
+      doc.rect(10, 10, 277, 190, 'S');
+
+      doc.setDrawColor(245, 158, 11); // Amber / Gold
+      doc.setLineWidth(0.5);
+      doc.rect(14, 14, 269, 182, 'S');
+
+      const cornerSize = 8;
+      doc.setFillColor(30, 41, 59);
+      doc.rect(14, 14, cornerSize, cornerSize, 'F');
+      doc.rect(283 - cornerSize, 14, cornerSize, cornerSize, 'F');
+      doc.rect(14, 196 - cornerSize, cornerSize, cornerSize, 'F');
+      doc.rect(283 - cornerSize, 196 - cornerSize, cornerSize, cornerSize, 'F');
+
+      let y = 30;
+      doc.setFontSize(8.5);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(100, 110, 120);
+      doc.text('МИНИСТЕРСТВО ОБРАЗОВАНИЯ РЕСПУБЛИКИ БЕЛАРУСЬ', 148.5, y, { align: 'center' });
+      
+      y += 4.5;
+      doc.text('УО «БЕЛОРУССКИЙ ГОСУДАРСТВЕННЫЙ ЭКОНОМИЧЕСКИЙ УНИВЕРСИТЕТ»', 148.5, y, { align: 'center' });
+      
+      y += 4.5;
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('ФАКУЛЬТЕТ ЭКОНОМИКИ И МЕНЕДЖМЕНТА • СТУДЕНЧЕСКОЕ НАУЧНОЕ ОБЩЕСТВО', 148.5, y, { align: 'center' });
+
+      y += 6;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(30, y, 267, y);
+
+      y += 18;
+      doc.setFontSize(22);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('СЕРТИФИКАТ ОБ УСПЕШНОМ ПРОХОЖДЕНИИ', 148.5, y, { align: 'center' });
+
+      y += 6;
+      doc.setFontSize(10);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(245, 158, 11);
+      doc.text('ИНТЕЛЛЕКТУАЛЬНЫЕ ВИКТОРУНЫ СНО ФЭМ БГЭУ', 148.5, y, { align: 'center', charSpace: 1.5 });
+
+      y += 16;
+      doc.setFontSize(12);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Настоящим сертификатом подтверждается, что студент-исследователь', 148.5, y, { align: 'center' });
+
+      y += 12;
+      doc.setFontSize(18);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(15, 23, 42);
+      const studentName = profile?.name || 'Студент БГЭУ';
+      doc.text(studentName, 148.5, y, { align: 'center' });
+
+      y += 8;
+      doc.setFontSize(11);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Студент ${profile?.course || 3}-го курса группы ${profile?.group || 'ДНЗ-2'} факультета экономики и менеджмента`, 148.5, y, { align: 'center' });
+
+      y += 14;
+      doc.setFontSize(11);
+      doc.text('успешно прошел(а) научную интерактивную викторину СНО на тему:', 148.5, y, { align: 'center' });
+
+      y += 8;
+      doc.setFontSize(13);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`«${quiz.title}»`, 148.5, y, { align: 'center', maxWidth: 210 });
+
+      y += 14;
+      doc.setFontSize(11);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(30, 41, 59);
+      const pointsReward = Math.round(quiz.pointsReward * (score / quiz.questions.length));
+      doc.text(`С результатом: ${score} из ${quiz.questions.length} правильных ответов (${Math.round((score / quiz.questions.length) * 100)}% верных решений).`, 148.5, y, { align: 'center' });
+      y += 5.5;
+      doc.text(`За проявленную эрудицию исследователю начислено и добавлено ${pointsReward} баллов в личный рейтинг СНО ФЭМ.`, 148.5, y, { align: 'center' });
+
+      y = 158;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.rect(25, y, 110, 26, 'F');
+      doc.rect(25, y, 110, 26, 'S');
+
+      doc.setFontSize(7.5);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(100, 110, 120);
+      doc.text('ВЕРИФИКАЦИЯ РЕЗУЛЬТАТОВ СНО RESTR', 30, y + 5);
+      
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8);
+      const uniqueCode = `SNO-QUIZ-${quiz.id.toUpperCase()}-${score}-${profile?.studentId || 'GUEST'}`;
+      doc.text(`Код викторины: ${quiz.id}`, 30, y + 11);
+      doc.text(`Категория: ${quiz.category}`, 30, y + 16);
+      
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Проверочный токен: ${uniqueCode}`, 30, y + 21);
+
+      doc.setFontSize(9);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text('Председатель СНО ФЭМ БГЭУ:', 155, y + 6);
+      doc.line(205, y + 6, 255, y + 6);
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('(Терро А.В.)', 215, y + 10);
+
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(9);
+      doc.text('Декан факультета ФЭМ (М.П.):', 155, y + 18);
+      doc.line(205, y + 18, 255, y + 18);
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('(СНО ФЭМ БГЭУ)', 215, y + 22);
+
+      const fileName = `sno_quiz_certificate_${quiz.id}_${(profile?.name || 'student').replace(/\s+/g, '_')}.pdf`;
+      doc.save(fileName);
+    } catch (err) {
+      console.error('Error generating Quiz PDF: ', err);
+    } finally {
+      setDownloadingCertId(null);
+    }
+  };
 
   const startQuiz = (quiz: Quiz) => {
     setActiveQuiz(quiz);
@@ -149,14 +352,37 @@ export default function QuizSection({
                     )}
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-50">
-                    <button
-                      onClick={() => startQuiz(quiz)}
-                      className="w-full flex items-center justify-center space-x-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs py-2.5 transition-colors shadow-sm"
-                    >
-                      <span>{previousScore !== undefined ? 'Пройти снова' : 'Начать тест'}</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                  <div className="pt-4 mt-4 border-t border-slate-50 flex gap-2">
+                    {previousScore !== undefined ? (
+                      <>
+                        <button
+                          disabled
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs py-2.5 border border-slate-200 select-none cursor-not-allowed"
+                        >
+                          <span>Решение сохранено</span>
+                        </button>
+                        <button
+                          onClick={() => handleDownloadQuizCertificate(quiz, previousScore)}
+                          disabled={downloadingCertId === quiz.id}
+                          className="px-3 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs transition-all float-right shadow-sm shrink-0 flex items-center justify-center border-none cursor-pointer disabled:opacity-60"
+                          title="Скачать официальный сертификат викторины"
+                        >
+                          {downloadingCertId === quiz.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => startQuiz(quiz)}
+                        className="w-full flex items-center justify-center space-x-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-white font-bold text-xs py-2.5 transition-colors shadow-sm cursor-pointer border-none"
+                      >
+                        <span>Начать тест (1 попытка)</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -168,8 +394,8 @@ export default function QuizSection({
             <Trophy className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
               <span className="text-xs font-bold text-amber-800 uppercase tracking-widest leading-none block">Правила СНО БГЭУ</span>
-              <p className="text-xs text-slate-600 leading-relaxed font-sans">
-                Система начисления баллов СНО ФЭМ является полностью автоматизированной. Очки начисляются пропорционально правильным ответам. Баллы за конкретную викторину можно накопить только один раз (до максимума). Попытки прохождения не ограничены. Исследуйте подсказки, учитесь экономике и побеждайте!
+              <p className="text-xs text-slate-600 leading-relaxed font-sans mt-1">
+                Система начисления баллов СНО ФЭМ является полностью автоматизированной. Очки начисляются пропорционально правильным ответам. <b>Согласно обновлению, на каждую викторину даётся только 1 попытка</b>. После завершения викторины вы сможете сгенерировать и скачать верифицированный Сертификат СНО ФЭМ (PDF). Проверяйте свои ответы внимательно!
               </p>
             </div>
           </div>
@@ -332,31 +558,35 @@ export default function QuizSection({
                 </div>
               </div>
 
-              {/* Highscore assessment text */}
+              {/* Highscore info regarding single attempt logic */}
               <div className="max-w-sm mx-auto p-3.5 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 text-[11px] text-slate-600 leading-relaxed font-sans text-left space-y-1">
                 <span className="font-bold text-blue-900 block uppercase tracking-wider text-[10px]">Информация по начислению:</span>
-                {completedQuizIds[activeQuiz.id] !== undefined && completedQuizIds[activeQuiz.id] >= correctAnswersCount ? (
-                  <span>
-                    Вы уже ранее проходили эту викторину с результатом <b>{completedQuizIds[activeQuiz.id]} из {activeQuiz.questions.length}</b>. Баллы начисляются только за улучшение лучшего результата. Попробуйте еще раз, чтобы получить идеальный балл!
-                  </span>
-                ) : (
-                  <span>
-                    Поздравляем! Новый рекорд записан в систему СНО ФЭМ БГЭУ. Очки успешно зачислены в ваш личный профиль и готовы к использованию в магазине СНО.
-                  </span>
-                )}
+                <span>
+                  Ваш результат <b>{correctAnswersCount} из {activeQuiz.questions.length}</b> зафиксирован в базе данных СНО ФЭМ БГЭУ. Единственная попытка использована. Скачайте официальный сертификат о прохождении викторины ниже.
+                </span>
               </div>
 
               <div className="flex flex-col gap-2 max-w-xs mx-auto pt-2">
                 <button
-                  onClick={() => startQuiz(activeQuiz)}
-                  className="w-full flex items-center justify-center space-x-1.5 rounded-xl border border-slate-200 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  onClick={() => handleDownloadQuizCertificate(activeQuiz, correctAnswersCount)}
+                  disabled={downloadingCertId === activeQuiz.id}
+                  className="w-full flex items-center justify-center space-x-1.5 rounded-xl bg-blue-900 hover:bg-blue-950 text-white font-bold py-2.5 text-xs transition-all shadow hover:shadow-md border-none cursor-pointer disabled:opacity-60"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span>Пройти заново</span>
+                  {downloadingCertId === activeQuiz.id ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Генерация Сертификата (PDF)...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Скачать Сертификат (PDF)</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={() => setActiveQuiz(null)}
-                  className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 text-xs transition-colors shadow"
+                  className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 text-xs transition-colors shadow border-none cursor-pointer"
                 >
                   Вернуться к списку викторин
                 </button>

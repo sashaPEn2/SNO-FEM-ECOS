@@ -131,7 +131,7 @@ export default function TimelineSection({ profile, timelineItems, onNavigateToTa
       doc.setFont('Roboto', 'bold');
       doc.setTextColor(71, 85, 105);
       doc.text('Заявитель (Студент):', 25, y + 7);
-      doc.text('Академическая группа:', 25, y + 13);
+      doc.text('Учебная группа:', 25, y + 13);
       doc.text('Ведомство / Статус:', 25, y + 19);
       doc.text('Текущий научный баланс:', 25, y + 25);
       doc.text('Всего заработано баллов:', 25, y + 31);

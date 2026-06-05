@@ -258,6 +258,7 @@ export default function App() {
                     onAddPoints={handleAddPointsLocalFallback}
                     completedQuizIds={completedQuizzes}
                     onCompleteQuiz={completeQuiz}
+                    profile={profile}
                   />
                 )}
 

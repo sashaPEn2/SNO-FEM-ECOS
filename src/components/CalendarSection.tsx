@@ -57,7 +57,7 @@ export default function CalendarSection({
       return;
     }
     if (!studentGroup.trim()) {
-      setFormError('Пожалуйста, укажите академическую группу');
+      setFormError('Пожалуйста, укажите учебную группу');
       return;
     }
     if (role === 'speaker' && !paperTitle.trim()) {
