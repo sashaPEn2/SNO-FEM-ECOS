@@ -9,6 +9,7 @@ import SnoActiveSection from './components/SnoActiveSection';
 import AdminDashboard from './components/AdminDashboard';
 import ProfileSection from './components/ProfileSection';
 import FAQSection from './components/FAQSection';
+import SnoAboutSection from './components/SnoAboutSection';
 import ArticleDetailPage from './components/ArticleDetailPage';
 import EventDetailPage from './components/EventDetailPage';
 import { useFirebase } from './context/FirebaseContext';
@@ -36,6 +37,7 @@ export default function App() {
     awardPoints,
     createQuiz,
     createNews,
+    deleteNews,
     completeQuiz,
     updateStudentProfileFromAdmin,
     resetAllDbData,
@@ -47,6 +49,7 @@ export default function App() {
   } = useFirebase();
 
   const [activeTab, setActiveTab] = useState<string>('news');
+  const [guestProfile, setGuestProfile] = useState<any>(null);
   const [currentHash, setCurrentHash] = useState<string>(window.location.hash);
 
   useEffect(() => {
@@ -59,14 +62,31 @@ export default function App() {
 
   // Authentication proxy updates
   const handleLogin = () => {
+    setGuestProfile(null);
     setActiveTab('news');
   };
 
   const handleRegister = () => {
+    setGuestProfile(null);
     setActiveTab('news');
   };
 
+  const handleGuestLogin = () => {
+    setGuestProfile({
+      name: 'Уважаемый Гость',
+      course: 1,
+      group: 'ГОСТЬ',
+      studentId: 'GUEST-007',
+      points: 0,
+      exemptionCount: 0,
+      role: 'student',
+      isGuest: true
+    });
+    setActiveTab('sno_about');
+  };
+
   const handleLogout = async () => {
+    setGuestProfile(null);
     await logout();
     setActiveTab('news');
   };
@@ -157,7 +177,8 @@ export default function App() {
     );
   }
 
-  const isLoggedIn = !!currentUser && !!profile;
+  const isLoggedIn = (!!currentUser && !!profile) || !!guestProfile;
+  const currentProfile = profile || guestProfile;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-800">
@@ -165,7 +186,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        profile={profile || { name: 'Гость', course: 3, group: 'ДНЗ-2', studentId: '', points: 0, exemptionCount: 0 }}
+        profile={currentProfile || { name: 'Гость', course: 3, group: 'ДНЗ-2', studentId: '', points: 0, exemptionCount: 0 }}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
       />
@@ -177,6 +198,7 @@ export default function App() {
             onLogin={handleLogin}
             registeredUsers={registeredUsersList}
             onRegister={handleRegister}
+            onGuestLogin={handleGuestLogin}
           />
         ) : (
           <>
@@ -199,8 +221,9 @@ export default function App() {
                   news={news}
                   onLikeNews={likeNews}
                   onNavigateToTab={setActiveTab}
-                  profile={profile || undefined}
+                  profile={currentProfile || undefined}
                   onAddNews={createNews}
+                  onDeleteNews={deleteNews}
                 />
               );
             })() : currentHash.startsWith('#/event/') ? (() => {
@@ -211,7 +234,7 @@ export default function App() {
                   <EventDetailPage
                     event={foundEvent}
                     registrations={registrations}
-                    profile={profile}
+                    profile={currentProfile}
                     onRegisterEvent={registerForEvent}
                     onCancelRegistration={cancelRegistration}
                     onBack={() => { window.location.hash = ''; setActiveTab('calendar'); }}
@@ -222,13 +245,17 @@ export default function App() {
                 <CalendarSection
                   events={events}
                   registrations={registrations}
-                  profile={profile}
+                  profile={currentProfile}
                   onRegisterEvent={registerForEvent}
                   onCancelRegistration={cancelRegistration}
                 />
               );
             })() : (
               <>
+                {activeTab === 'sno_about' && (
+                  <SnoAboutSection onNavigateToTab={setActiveTab} />
+                )}
+
                 {activeTab === 'profile' && (
                   <ProfileSection />
                 )}
@@ -238,8 +265,9 @@ export default function App() {
                     news={news}
                     onLikeNews={likeNews}
                     onNavigateToTab={setActiveTab}
-                    profile={profile || undefined}
+                    profile={currentProfile || undefined}
                     onAddNews={createNews}
+                    onDeleteNews={deleteNews}
                   />
                 )}
 
@@ -247,7 +275,7 @@ export default function App() {
                   <CalendarSection
                     events={events}
                     registrations={registrations}
-                    profile={profile}
+                    profile={currentProfile}
                     onRegisterEvent={registerForEvent}
                     onCancelRegistration={cancelRegistration}
                   />
@@ -259,13 +287,13 @@ export default function App() {
                     onAddPoints={handleAddPointsLocalFallback}
                     completedQuizIds={completedQuizzes}
                     onCompleteQuiz={completeQuiz}
-                    profile={profile}
+                    profile={currentProfile}
                   />
                 )}
 
                 {activeTab === 'timeline' && (
                   <TimelineSection
-                    profile={profile}
+                    profile={currentProfile}
                     timelineItems={timelineItems}
                     onNavigateToTab={setActiveTab}
                   />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Award, Heart, Eye, ArrowRight, Plus, Sparkles, AlertCircle } from 'lucide-react';
+import { BookOpen, Award, Heart, Eye, ArrowRight, Plus, Sparkles, AlertCircle, Trash, Upload, ImageIcon } from 'lucide-react';
 import { NewsItem, StudentProfile } from '../types';
 import ArticleDetailPage from './ArticleDetailPage';
 
@@ -9,9 +9,10 @@ interface NewsSectionProps {
   onNavigateToTab: (tab: string) => void;
   profile?: StudentProfile;
   onAddNews?: (newNews: NewsItem) => Promise<void>;
+  onDeleteNews?: (id: string) => Promise<void>;
 }
 
-export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile, onAddNews }: NewsSectionProps) {
+export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile, onAddNews, onDeleteNews }: NewsSectionProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeArticle, setActiveArticle] = useState<NewsItem | null>(null);
 
@@ -33,6 +34,21 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
     { label: '📚 Конференция, круглый стол & доклады', url: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=800&q=80' },
     { label: '🏅 Премии, гранты, награды ФЭМ БГЭУ', url: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80' },
   ];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 3 * 1024 * 1024) {
+        setModalError('Файл слишком большой. Максимальный размер 3МБ.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmitNews = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +254,20 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
                   </button>
 
                   <div className="flex items-center space-x-2">
+                    {isActivist && onDeleteNews && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Вы действительно хотите удалить эту публикацию?')) {
+                            await onDeleteNews(item.id);
+                          }
+                        }}
+                        className="flex items-center justify-center p-1.5 rounded-lg bg-red-50 text-red-650 border border-red-100 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
+                        title="Удалить статью"
+                      >
+                        <Trash className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onLikeNews(item.id)}
                       className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
@@ -348,6 +378,36 @@ export default function NewsSection({ news, onLikeNews, onNavigateToTab, profile
                     </button>
                   ))}
                 </div>
+                
+                {/* Custom File Upload Option */}
+                <div className="bg-slate-50 border border-dashed border-slate-300 rounded-xl p-3.5 flex flex-col items-center justify-center text-center gap-2 hover:bg-slate-100/50 transition-all">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <Upload className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-705">Загрузить фото с устройства</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="article-file-upload"
+                  />
+                  <label
+                    htmlFor="article-file-upload"
+                    className="px-3.5 py-1.5 bg-white border border-slate-205 text-slate-600 rounded-lg text-[11px] font-bold hover:bg-white/80 active:scale-95 transition-all cursor-pointer shadow-sm"
+                  >
+                    Выбрать файл изображения
+                  </label>
+                  {newImageUrl && newImageUrl.startsWith('data:image') && (
+                    <div className="mt-1 flex items-center gap-1.5 p-1 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100">
+                      <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="text-[10px] font-semibold truncate max-w-[200px]">Фото успешно прикреплено!</span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-1">
                   <input
                     type="url"

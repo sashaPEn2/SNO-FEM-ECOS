@@ -10,6 +10,7 @@ export interface StudentProfile {
   password?: string;
   isBudget?: boolean;
   phone?: string;
+  isGuest?: boolean;
 }
 
 export interface NewsItem {

@@ -375,12 +375,23 @@ export default function EventDetailPage({
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-blue-900 hover:bg-blue-850 text-white text-xs sm:text-sm font-bold py-3 transition-colors shadow-md shadow-blue-900/10 cursor-pointer text-center"
-                >
-                  Подтвердить запись
-                </button>
+                {profile.isGuest ? (
+                  <div className="bg-indigo-50 border border-indigo-150 p-4 rounded-xl text-center space-y-2.5">
+                    <p className="text-[11px] leading-relaxed text-indigo-950 font-bold">
+                      Вход в ознакомительном режиме
+                    </p>
+                    <p className="text-[10px] sm:text-[11px] leading-relaxed text-slate-500 font-medium">
+                      Подача заявок на научные мероприятия доступна только авторизованным исследователям СНО ФЭМ. Регистрация займет менее минуты!
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full rounded-xl bg-blue-900 hover:bg-blue-850 text-white text-xs sm:text-sm font-bold py-3 transition-colors shadow-md shadow-blue-900/10 cursor-pointer text-center"
+                  >
+                    Подтвердить запись
+                  </button>
+                )}
               </form>
             </div>
           ) : (

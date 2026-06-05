@@ -9,9 +9,10 @@ interface AuthSectionProps {
   onLogin: (profile: StudentProfile) => void;
   registeredUsers: StudentProfile[];
   onRegister: (newProfile: StudentProfile) => void;
+  onGuestLogin?: () => void;
 }
 
-export default function AuthSection({ onLogin, registeredUsers, onRegister }: AuthSectionProps) {
+export default function AuthSection({ onLogin, registeredUsers, onRegister, onGuestLogin }: AuthSectionProps) {
   const { login, loginWithGoogle, registerStudent, currentUser } = useFirebase();
   const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
   const [email, setEmail] = useState('');
@@ -473,6 +474,33 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
               )}
             </button>
           </form>
+        )}
+
+        {onGuestLogin && (
+          <div className="mt-6 pt-5 border-t border-slate-100 space-y-3.5">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200"></div>
+              </div>
+              <span className="relative px-3.5 bg-white text-[10px] text-slate-400 font-extrabold tracking-widest uppercase">
+                Хотите просто ознакомиться?
+              </span>
+            </div>
+            
+            <div className="bg-gradient-to-br from-indigo-50/20 to-blue-50/20 border border-slate-200/60 rounded-2xl p-4 text-center space-y-3">
+              <p className="text-[11px] leading-relaxed text-slate-500 font-semibold">
+                Вы можете войти на сайт в гостевом ознакомительном режиме. Это позволит вам изучить актуальные новости, календарь научных мероприятий СНО и базу знаний FAQ без авторизации!
+              </p>
+              <button
+                type="button"
+                onClick={onGuestLogin}
+                className="w-full py-2.5 bg-white hover:bg-slate-50 text-indigo-950 font-bold text-xs border border-indigo-200 hover:border-indigo-300 rounded-xl transition-all flex items-center justify-center space-x-2 shadow-sm cursor-pointer active:scale-95"
+              >
+                <Users className="h-4 w-4 text-indigo-600" />
+                <span>Войти как Гость (Режим Просмотра)</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* HelpDesk Section for Firebase configuration */}

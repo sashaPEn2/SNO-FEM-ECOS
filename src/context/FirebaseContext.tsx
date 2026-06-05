@@ -53,6 +53,7 @@ interface FirebaseContextType {
   awardPoints: (studentIdOrName: string, amount: number, reason: string) => Promise<void>;
   createQuiz: (newQuiz: Quiz) => Promise<void>;
   createNews: (newNews: NewsItem) => Promise<void>;
+  deleteNews: (newsId: string) => Promise<void>;
   completeQuiz: (quizId: string, score: number) => Promise<void>;
   submitFeedback: (category: StudentFeedback['category'], message: string) => Promise<void>;
   updateFeedback: (id: string, updates: Partial<StudentFeedback>) => Promise<void>;
@@ -1483,6 +1484,22 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // DELETE NEWS ITEM
+  const deleteNews = async (newsId: string) => {
+    if (isSandboxActive) {
+      const updated = sbNews.filter(n => n.id !== newsId);
+      setSbNews(updated);
+      localStorage.setItem('sno_sb_news', JSON.stringify(updated));
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'news', newsId));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `news/${newsId}`);
+    }
+  };
+
   // COMPLETE SCIENCE QUIZ & DISBURSE SCORE
   const completeQuiz = async (quizId: string, score: number) => {
     const activeProf = isSandboxActive ? sandboxUser : profile;
@@ -1970,6 +1987,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       awardPoints,
       createQuiz,
       createNews,
+      deleteNews,
       completeQuiz,
       submitFeedback,
       updateFeedback,

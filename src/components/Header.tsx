@@ -16,17 +16,24 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Common tabs visible to everyone
-  const tabs = [
-    { id: 'profile', label: 'Профиль', icon: User },
-    { id: 'news', label: 'Новости СНО', icon: BookOpen },
-    { id: 'calendar', label: 'Календарь событий', icon: Calendar },
-    { id: 'quiz', label: 'Викторины', icon: Award },
-    { id: 'timeline', label: 'Достижения', icon: Trophy },
-    { id: 'faq', label: 'FAQ / Помощь', icon: HelpCircle },
-  ];
+  const tabs = profile.isGuest
+    ? [
+        { id: 'sno_about', label: 'О СНО ФЭМ', icon: Trophy },
+        { id: 'news', label: 'Новости СНО', icon: BookOpen },
+        { id: 'calendar', label: 'Календарь событий', icon: Calendar },
+        { id: 'faq', label: 'FAQ / Помощь', icon: HelpCircle },
+      ]
+    : [
+        { id: 'profile', label: 'Профиль', icon: User },
+        { id: 'news', label: 'Новости СНО', icon: BookOpen },
+        { id: 'calendar', label: 'Календарь событий', icon: Calendar },
+        { id: 'quiz', label: 'Викторины', icon: Award },
+        { id: 'timeline', label: 'Достижения', icon: Trophy },
+        { id: 'faq', label: 'FAQ / Помощь', icon: HelpCircle },
+      ];
 
   // Organizer tab if they are SNO activist
-  if (isLoggedIn && profile.role === 'sno_activist') {
+  if (isLoggedIn && profile.role === 'sno_activist' && !profile.isGuest) {
     tabs.push({ id: 'sno_active', label: 'Актив СНО', icon: Server });
     tabs.push({ id: 'admin_dashboard', label: 'Админ-Панель', icon: Shield });
   }
@@ -70,14 +77,7 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
           <nav className="hidden lg:flex items-center space-x-1">
             {/* Direct Links to Core Sections */}
             <div className="flex items-center space-x-1 border-r border-slate-100 pr-2 mr-2">
-              {[
-                { id: 'profile', label: 'Личный кабинет', icon: User },
-                { id: 'news', label: 'Новости СНО', icon: BookOpen },
-                { id: 'calendar', label: 'Календарь', icon: Calendar },
-                { id: 'quiz', label: 'Викторины', icon: Award },
-                { id: 'timeline', label: 'Достижения', icon: Trophy },
-                { id: 'faq', label: 'FAQ', icon: HelpCircle },
-              ].map((tab) => {
+              {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 return (
@@ -161,16 +161,27 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
 
               <div className="h-6 lg:h-8 w-px bg-slate-200"></div>
 
-              {/* Points Balance */}
-              <div className="flex flex-col items-center">
-                <span className="text-[8px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none">
-                  Баллы
-                </span>
-                <div className="flex items-center text-amber-600 font-mono font-bold text-xs lg:text-sm">
-                  <Sparkles className="h-2.5 w-2.5 lg:h-3 lg:w-3 mr-0.5 lg:mr-1 self-center animate-pulse" />
-                  <span>{profile.points}</span>
+              {/* Points Balance or Guest view */}
+              {profile.isGuest ? (
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] lg:text-[10px] text-indigo-400 font-bold uppercase tracking-wider leading-none">
+                    Режим
+                  </span>
+                  <div className="flex items-center text-indigo-700 font-bold text-xs uppercase">
+                    Гость
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none">
+                    Баллы
+                  </span>
+                  <div className="flex items-center text-amber-600 font-mono font-bold text-xs lg:text-sm">
+                    <Sparkles className="h-2.5 w-2.5 lg:h-3 lg:w-3 mr-0.5 lg:mr-1 self-center animate-pulse" />
+                    <span>{profile.points}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="h-6 lg:h-8 w-px bg-slate-200"></div>
 
@@ -190,7 +201,7 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
           )}
 
           {/* SNO Feed Notifications Bell */}
-          {isLoggedIn && (
+          {isLoggedIn && !profile.isGuest && (
             <div className="relative">
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
