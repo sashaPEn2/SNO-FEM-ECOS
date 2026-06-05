@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import Header from './components/Header';
 import NewsSection from './components/NewsSection';
 import CalendarSection from './components/CalendarSection';
@@ -160,6 +161,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-800">
+      <Analytics />
       {/* Dynamic Header Component */}
       <Header
         activeTab={activeTab}
