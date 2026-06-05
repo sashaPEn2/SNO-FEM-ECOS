@@ -38,6 +38,8 @@ interface FirebaseContextType {
   systemLogs: SystemLog[];
   isSandboxActive: boolean;
   setIsSandboxActive: (active: boolean) => void;
+  firebaseError: string | null;
+  setFirebaseError: (error: string | null) => void;
   isLoading: boolean;
   isAuthLoading: boolean;
   login: (email: string, password: string) => Promise<StudentProfile>;
@@ -100,7 +102,10 @@ export function useFirebase() {
 }
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
-  const [isSandboxActive, setIsSandboxActive] = useState<boolean>(false);
+  const [isSandboxActive, setIsSandboxActive] = useState<boolean>(() => {
+    return localStorage.getItem('sno_sandbox_active') === 'true';
+  });
+  const [firebaseError, setFirebaseError] = useState<string | null>(null);
 
   const [sandboxUser, setSandboxUser] = useState<StudentProfile | null>(() => {
     const saved = localStorage.getItem('sno_sandbox_user');
@@ -270,8 +275,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         await batch.commit();
         console.log("Cloud Firestore seeded successfully.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Failed to complete seeding: ", err);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(err?.message || String(err));
+      }
     }
   };
 
@@ -293,7 +301,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       // Sort news by date descending
       setNews(nList.sort((a, b) => b.date.localeCompare(a.date)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'news');
+      console.warn("Firestore listener 'news' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     // Listen to Events
@@ -304,7 +315,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
       setEvents(eList);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'events');
+      console.warn("Firestore listener 'events' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     // Listen to All Exemption Certificates for registry and verification purposes
@@ -315,7 +329,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
       setCertificates(cList.sort((a, b) => b.dateRequested.localeCompare(a.dateRequested)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'certificates');
+      console.warn("Firestore listener 'certificates' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     return () => {
@@ -345,7 +362,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
       setQuizzes(qList);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'quizzes');
+      console.warn("Firestore listener 'quizzes' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     // Listen to all registrations (Requires isSignedIn)
@@ -356,7 +376,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
       setRegistrations(rList);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'registrations');
+      console.warn("Firestore listener 'registrations' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     // Listen to all users list for panel simulations & Activist registries (Requires isSignedIn)
@@ -367,7 +390,10 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       });
       setRegisteredUsersList(uList);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
+      console.warn("Firestore listener 'users' error: ", error);
+      if (localStorage.getItem('sno_sandbox_active') !== 'true') {
+        setFirebaseError(error.message || String(error));
+      }
     });
 
     // Listen to all feedbacks (Requires isSignedIn)
@@ -519,10 +545,20 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     : notifications;
 
   const handleToggleSandbox = (active: boolean) => {
-    setIsSandboxActive(false);
-    localStorage.setItem('sno_sandbox_active', 'false');
-    setSandboxUser(null);
-    localStorage.removeItem('sno_sandbox_user');
+    setIsSandboxActive(active);
+    localStorage.setItem('sno_sandbox_active', active ? 'true' : 'false');
+    if (!active) {
+      setSandboxUser(null);
+      localStorage.removeItem('sno_sandbox_user');
+    } else {
+      const savedUser = localStorage.getItem('sno_sandbox_user');
+      if (!savedUser) {
+        const defaultDaria = sbUsersList[0];
+        setSandboxUser(defaultDaria);
+        localStorage.setItem('sno_sandbox_user', JSON.stringify(defaultDaria));
+      }
+    }
+    setFirebaseError(null);
   };
 
   // LOGIN FUNCTION
@@ -1919,6 +1955,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       setActiveToast,
       isSandboxActive,
       setIsSandboxActive: handleToggleSandbox,
+      firebaseError,
+      setFirebaseError,
       isLoading,
       isAuthLoading,
       login,

@@ -1,10 +1,8 @@
 {
-  "projectId": "profound-nectar-gszp9",
-  "appId": "1:326620630565:web:5d208b774c5b4ee6cab9cc",
-  "apiKey": "AIzaSyAUUr64I9moGVWqy4HsLKJqLz1fx6T9bN0",
-  "authDomain": "profound-nectar-gszp9.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-751a52ca-eacd-4040-9605-bb4ae7547116",
-  "storageBucket": "profound-nectar-gszp9.firebasestorage.app",
-  "messagingSenderId": "326620630565",
-  "measurementId": ""
+  "projectId": "sno-fem-bseu",
+  "appId": "1:1027787083461:web:fb13da67fd9579ba302aac",
+  "apiKey": "AIzaSyDcfCxhVjhcvoe9uXcYZp3-X35jx1H71iY",
+  "authDomain": "sno-fem-bseu.firebaseapp.com",
+  "storageBucket": "sno-fem-bseu.firebasestorage.app",
+  "messagingSenderId": "1027787083461"
 }

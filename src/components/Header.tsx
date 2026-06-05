@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export default function Header({ activeTab, setActiveTab, profile, onLogout, isLoggedIn }: HeaderProps) {
-  const { isSandboxActive, notifications, markNotificationAsRead, clearNotifications } = useFirebase();
+  const { isSandboxActive, setIsSandboxActive, notifications, markNotificationAsRead, clearNotifications } = useFirebase();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Common tabs visible to everyone
@@ -49,9 +49,13 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
                 БГЭУ
               </span>
               {isSandboxActive && (
-                <span className="hidden sm:inline-block text-[8px] font-bold px-1.5 py-px rounded bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
-                  Песочница
-                </span>
+                <button
+                  onClick={() => setIsSandboxActive(false)}
+                  className="hidden sm:inline-block text-[8px] font-bold px-1.5 py-px rounded bg-amber-105 text-amber-800 border border-amber-200 hover:bg-amber-200 uppercase tracking-wide cursor-pointer transition-colors"
+                  title="Нажмите, чтобы вернуться в Облачный режим"
+                >
+                  Песочница ✖
+                </button>
               )}
             </div>
             <p className="hidden sm:block md:hidden xl:block text-[9px] font-medium text-slate-500 uppercase tracking-widest leading-none">

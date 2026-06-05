@@ -424,6 +424,30 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
                 />
               </div>
 
+              {/* SNO Role Selector (Temporarily Restored as requested) */}
+              <div className="md:col-span-2 bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Роль в СНО ФЭМ *
+                  </label>
+                  <span className="text-[10px] text-amber-700 font-extrabold uppercase bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 animate-pulse">
+                    ⚠️ Временный доступ
+                  </span>
+                </div>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as 'student' | 'sno_activist')}
+                  disabled={isLoading}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 text-slate-900 transition-all text-sm font-semibold"
+                >
+                  <option value="student">🎓 Студент-Исследователь (Стандартный аккаунт)</option>
+                  <option value="sno_activist">⚡ Член актива СНО / Адвокат-Модератор ФЭМ</option>
+                </select>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Регистрация актива СНО временно возвращена по запросу администрации. Выбрав роль <b>«Член актива»</b>, вы получите расширенные модераторские права доступа и доступ к реестру.
+                </p>
+              </div>
+
               {/* Email */}
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold text-slate-705 uppercase tracking-wider mb-1 flex items-center justify-between">

@@ -298,7 +298,7 @@ export default function TimelineSection({ profile, timelineItems, onNavigateToTa
       doc.text('Председатель СНО ФЭМ БГЭУ:', 20, y);
       doc.setDrawColor(200, 205, 210);
       doc.line(68, y, 122, y);
-      doc.text('(А. К. Некрашевич)', 125, y);
+      doc.text('(Терро А.В.)', 125, y);
 
       // Stamp placeholder
       doc.text('М.П.', 168, y - 1);
