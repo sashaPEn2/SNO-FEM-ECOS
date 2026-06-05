@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Analytics } from '@vercel/analytics/react';
 import Header from './components/Header';
 import NewsSection from './components/NewsSection';
 import CalendarSection from './components/CalendarSection';
@@ -9,6 +8,7 @@ import AuthSection from './components/AuthSection';
 import SnoActiveSection from './components/SnoActiveSection'; 
 import AdminDashboard from './components/AdminDashboard';
 import ProfileSection from './components/ProfileSection';
+import FAQSection from './components/FAQSection';
 import ArticleDetailPage from './components/ArticleDetailPage';
 import EventDetailPage from './components/EventDetailPage';
 import { useFirebase } from './context/FirebaseContext';
@@ -161,7 +161,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-800">
-      <Analytics />
       {/* Dynamic Header Component */}
       <Header
         activeTab={activeTab}
@@ -270,6 +269,10 @@ export default function App() {
                     timelineItems={timelineItems}
                     onNavigateToTab={setActiveTab}
                   />
+                )}
+
+                {activeTab === 'faq' && (
+                  <FAQSection />
                 )}
 
                 {activeTab === 'sno_active' && profile.role === 'sno_activist' && (

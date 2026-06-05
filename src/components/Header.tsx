@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Calendar, Award, ShoppingBag, User, GraduationCap, Sparkles, Trophy, ShieldCheck, Server, LogOut, Shield, Bell, Trash, Check, AlertCircle, ChevronDown } from 'lucide-react';
+import { BookOpen, Calendar, Award, ShoppingBag, User, GraduationCap, Sparkles, Trophy, ShieldCheck, Server, LogOut, Shield, Bell, Trash, Check, AlertCircle, ChevronDown, HelpCircle } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { useFirebase } from '../context/FirebaseContext';
 
@@ -22,6 +22,7 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
     { id: 'calendar', label: 'Календарь событий', icon: Calendar },
     { id: 'quiz', label: 'Викторины', icon: Award },
     { id: 'timeline', label: 'Достижения', icon: Trophy },
+    { id: 'faq', label: 'FAQ / Помощь', icon: HelpCircle },
   ];
 
   // Organizer tab if they are SNO activist
@@ -75,6 +76,7 @@ export default function Header({ activeTab, setActiveTab, profile, onLogout, isL
                 { id: 'calendar', label: 'Календарь', icon: Calendar },
                 { id: 'quiz', label: 'Викторины', icon: Award },
                 { id: 'timeline', label: 'Достижения', icon: Trophy },
+                { id: 'faq', label: 'FAQ', icon: HelpCircle },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
