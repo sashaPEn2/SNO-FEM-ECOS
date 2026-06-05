@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useFirebase } from '../context/FirebaseContext';
-import { Achievement, StudentProfile } from '../types';
+import { Achievement, StudentProfile, ExemptionCertificate } from '../types';
+import { jsPDF } from 'jspdf';
 import { 
   User, Mail, Phone, Hash, Award, Trophy, BookOpen, GraduationCap, 
   Sparkles, Calendar, BookCheck, ClipboardList, PenTool, Edit3, 
@@ -21,6 +22,214 @@ export default function ProfileSection() {
     updateStudentProfileFromAdmin,
     isSandboxActive
   } = useFirebase();
+
+  // Exemption Certificates States
+  const [downloadingCertId, setDownloadingCertId] = useState<string | null>(null);
+  const [isDownloadingAny, setIsDownloadingAny] = useState(false);
+
+  // Helper function to fetch font as base64 with mirrors/fallbacks
+  const getFontBase64WithFallbacks = async (urls: string[]): Promise<string> => {
+    let lastError: Error | null = null;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP status ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Convert arrayBuffer to base64
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+      } catch (err) {
+        console.warn(`Font fetch failed for ${url}. Trying next available fallback...`, err);
+        lastError = err as Error;
+      }
+    }
+    throw lastError || new Error('No URLs provided');
+  };
+
+  // Generate highly polished landscape A4 PDF Certificate
+  const handleDownloadCertificatePDF = async (cert: ExemptionCertificate) => {
+    setDownloadingCertId(cert.id);
+    setIsDownloadingAny(true);
+    try {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // High-availability mirrors to load Roboto with Cyrillic support
+      const REGULAR_FONT_URLS = [
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Regular.ttf',
+        'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf',
+        'https://unpkg.com/pdfmake@0.1.66/build/fonts/Roboto/Roboto-Regular.ttf',
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/static/Roboto-Regular.ttf'
+      ];
+
+      const BOLD_FONT_URLS = [
+        'https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/static/Roboto-Bold.ttf',
+        'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.66/fonts/Roboto/Roboto-Medium.ttf',
+        'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.ttf',
+        'https://unpkg.com/pdfmake@0.1.66/build/fonts/Roboto/Roboto-Medium.ttf'
+      ];
+
+      try {
+        const [reg64, bold64] = await Promise.all([
+          getFontBase64WithFallbacks(REGULAR_FONT_URLS),
+          getFontBase64WithFallbacks(BOLD_FONT_URLS)
+        ]);
+
+        doc.addFileToVFS('Roboto-Regular.ttf', reg64);
+        doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+
+        doc.addFileToVFS('Roboto-Bold.ttf', bold64);
+        doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+
+        doc.setFont('Roboto', 'normal');
+      } catch (fontErr) {
+        console.error('Could not load Cyrillic fonts from any online CDN', fontErr);
+        console.warn('Внимание: Не удалось подключиться к серверам шрифтов. Текст может отображаться некорректно.');
+      }
+
+      // Border & Frame (Landscape size is 297mm x 210mm)
+      doc.setDrawColor(30, 41, 59); // slate-800
+      doc.setLineWidth(1.5);
+      doc.rect(10, 10, 277, 190, 'S');
+
+      doc.setDrawColor(234, 179, 8); // Gold/amber-500
+      doc.setLineWidth(0.5);
+      doc.rect(14, 14, 269, 182, 'S');
+
+      const cornerSize = 8;
+      doc.setFillColor(30, 41, 59);
+      doc.rect(14, 14, cornerSize, cornerSize, 'F');
+      doc.rect(283 - cornerSize, 14, cornerSize, cornerSize, 'F');
+      doc.rect(14, 196 - cornerSize, cornerSize, cornerSize, 'F');
+      doc.rect(283 - cornerSize, 196 - cornerSize, cornerSize, cornerSize, 'F');
+
+      let y = 28;
+      doc.setFontSize(8.5);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(100, 110, 120);
+      doc.text('МИНИСТЕРСТВО ОБРАЗОВАНИЯ РЕСПУБЛИКИ БЕЛАРУСЬ', 148.5, y, { align: 'center' });
+      
+      y += 4.5;
+      doc.text('УО «БЕЛОРУССКИЙ ГОСУДАРСТВЕННЫЙ ЭКОНОМИЧЕСКИЙ УНИВЕРСИТЕТ»', 148.5, y, { align: 'center' });
+      
+      y += 4.5;
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('ФАКУЛЬТЕТ ЭКОНОМИКИ И МЕНЕДЖМЕНТА • СТУДЕНЧЕСКОЕ НАУЧНОЕ ОБЩЕСТВО', 148.5, y, { align: 'center' });
+
+      y += 6;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(30, y, 267, y);
+
+      y += 18;
+      doc.setFontSize(24);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('СЕРТИФИКАТ УЧАСТНИКА', 148.5, y, { align: 'center' });
+
+      y += 6;
+      doc.setFontSize(10);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(234, 179, 8);
+      doc.text('ВЕРИФИЦИРОВАНО В РЕЕСТРЕ НАУЧНОЙ АКТИВНОСТИ СНО БГЭУ', 148.5, y, { align: 'center', charSpace: 1.5 });
+
+      y += 16;
+      doc.setFontSize(12);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text('Настоящим свидетельством подтверждается, что студент-исследователь', 148.5, y, { align: 'center' });
+
+      y += 12;
+      doc.setFontSize(18);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(cert.studentName, 148.5, y, { align: 'center' });
+
+      y += 8;
+      doc.setFontSize(11);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Обучающийся ${cert.course || profile?.course || 3}-го курса группы ${cert.studentGroup || profile?.group} факультета экономики и менеджмента`, 148.5, y, { align: 'center' });
+
+      y += 14;
+      doc.setFontSize(11);
+      doc.text('успешно проявил(а) научно-исследовательскую активность по теме / направлению:', 148.5, y, { align: 'center' });
+
+      y += 8;
+      doc.setFontSize(13);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`«${cert.reason}»`, 148.5, y, { align: 'center', maxWidth: 210 });
+
+      y += 14;
+      doc.setFontSize(10.5);
+      doc.setFont('Roboto', 'normal');
+      doc.setTextColor(71, 85, 105);
+      const exemptionPeriod = cert.endDate && cert.endDate !== cert.targetExemptionDate
+        ? `с ${cert.targetExemptionDate} по ${cert.endDate}`
+        : `${cert.targetExemptionDate} г.`;
+      
+      doc.text(`За научную деятельность начислено и зачтено ${cert.pointsDeducted} баллов СНО БГЭУ.`, 148.5, y, { align: 'center' });
+      y += 5.5;
+      doc.text(`Данная работа является официальным основанием для освобождения от занятий на период: ${exemptionPeriod}`, 148.5, y, { align: 'center' });
+
+      y = 158;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.2);
+      doc.rect(25, y, 110, 26, 'F');
+      doc.rect(25, y, 110, 26, 'S');
+
+      doc.setFontSize(7.5);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(100, 110, 120);
+      doc.text('СИСТЕМА БЕЗОПАСНОСТИ СНО RESTR', 30, y + 5);
+      
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Уникальный ID: ${cert.id}`, 30, y + 11);
+      doc.text(`Дата выдачи: ${cert.dateRequested || new Date().toLocaleDateString('ru-RU')}`, 30, y + 16);
+      
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Проверочный хэш: ${cert.verificationCode}`, 30, y + 21);
+
+      doc.setFontSize(9);
+      doc.setFont('Roboto', 'bold');
+      doc.setTextColor(51, 65, 85);
+      doc.text('Председатель СНО ФЭМ БГЭУ:', 155, y + 6);
+      doc.line(205, y + 6, 255, y + 6);
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('(Терро А.В.)', 215, y + 10);
+
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(9);
+      doc.text('Декан факультета ФЭМ (М.П.):', 155, y + 18);
+      doc.line(205, y + 18, 255, y + 18);
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('(СНО ФЭМ БГЭУ)', 215, y + 22);
+
+      const fileName = `sno_certificate_${cert.id}_${cert.studentName.replace(/\s+/g, '_')}.pdf`;
+      doc.save(fileName);
+    } catch (err) {
+      console.error('Error generating PDF Certificate: ', err);
+    } finally {
+      setDownloadingCertId(null);
+      setIsDownloadingAny(false);
+    }
+  };
 
   // Profile Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -539,6 +748,113 @@ export default function ProfileSection() {
             );
           })}
         </div>
+      </div>
+
+      {/* Certificates Section */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-md space-y-6">
+        <div className="space-y-1 border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+              <BookCheck className="h-5.5 w-5.5 text-blue-900" />
+              <span>Мои Сертификаты и Справки Обоснования</span>
+            </h2>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              Ваши подтвержденные цифровые сертификаты о научных докладах и справки на освобождение от занятий ФЭМ.
+            </p>
+          </div>
+          <div className="text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 shrink-0 self-start sm:self-auto">
+            Всего выдано справко-сертификатов: <b className="text-blue-900 font-mono">{certificates.filter(c => c.studentId === profile?.studentId).length}</b>
+          </div>
+        </div>
+
+        {certificates.filter(c => c.studentId === profile?.studentId).length === 0 ? (
+          <div className="text-center py-10 px-4 border-2 border-dashed border-slate-100 rounded-3xl space-y-3 bg-slate-50/20">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-slate-50 border border-slate-100 text-slate-350 flex items-center justify-center">
+              <Award className="h-6 w-6 text-slate-350" />
+            </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h4 className="font-bold text-slate-800 text-sm">Пока нет активных сертификатов</h4>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                Зарегистрируйтесь на научные конференции, успешно выступайте с докладами или обменивайте накопленные баллы на освобождение от академических занятий.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {certificates.filter(c => c.studentId === profile?.studentId).map((cert) => {
+              const isDownloadingThis = downloadingCertId === cert.id;
+              return (
+                <div 
+                  key={cert.id}
+                  className="bg-gradient-to-br from-white to-slate-50/40 p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative overflow-hidden"
+                >
+                  {/* Accent colored line */}
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-900" />
+
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-extrabold uppercase font-sans tracking-widest text-indigo-700 bg-indigo-50 border border-indigo-100/70 px-2 py-0.5 rounded">
+                          Код справки SNO: {cert.id}
+                        </span>
+                        <h3 className="text-sm font-bold text-slate-900 line-clamp-1 mt-1.5">
+                          {cert.reason}
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-150 shrink-0">
+                        Верифицирован
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-1.5 text-[11px] leading-snug">
+                      <div>
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Период освобождения</span>
+                        <span className="font-semibold text-slate-800 flex items-center gap-1 mt-0.5">
+                          <Calendar className="h-3.5 w-3.5 text-slate-450 shrink-0" />
+                          {cert.targetExemptionDate} {cert.endDate && cert.endDate !== cert.targetExemptionDate ? ` - ${cert.endDate}` : ''}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Инвестировано баллов</span>
+                        <span className="font-bold text-slate-800 flex items-center gap-1 mt-0.5">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          {cert.pointsDeducted} баллов
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2">
+                      <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest">Хэш-код проверки облака БГЭУ</span>
+                      <code className="text-[10px] text-slate-505 bg-slate-50 px-2 py-1 rounded font-mono block mt-1 select-all break-all border border-slate-150">
+                        {cert.verificationCode}
+                      </code>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => handleDownloadCertificatePDF(cert)}
+                      disabled={isDownloadingThis || isDownloadingAny}
+                      className="w-full py-2 bg-blue-900 border-none text-white hover:bg-blue-950 rounded-xl font-bold text-xs shadow hover:shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDownloadingThis ? (
+                        <>
+                          <ArrowUpRight className="h-4 w-4 animate-spin shrink-0" />
+                          <span>Генерация PDF-файла...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                          <span>Скачать Сертификат (PDF)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

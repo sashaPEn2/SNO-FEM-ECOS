@@ -3,6 +3,7 @@ import { StudentProfile } from '../types';
 import { GraduationCap, ShieldCheck, UserCheck, Lock, Mail, Users, BookOpen, Key, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useFirebase } from '../context/FirebaseContext';
 import { auth } from '../firebase';
+import HelpDeskSection from './HelpDeskSection';
 
 interface AuthSectionProps {
   onLogin: (profile: StudentProfile) => void;
@@ -291,15 +292,7 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
               <span>Войти через Google</span>
             </button>
 
-            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 text-[11px] text-slate-500 space-y-1">
-              <p className="font-semibold text-blue-900">💡 Как настроить Email/Пароль?</p>
-              <p>
-                Если вы используете собственный проект Firebase, включите провайдер <strong>«Email/Password»</strong> в разделе <strong>Firebase Console &rarr; Build &rarr; Authentication &rarr; Sign-in method</strong>.
-              </p>
-              <p className="text-slate-400 font-medium">
-                Если вы работаете в тестовой песочнице, удобнее всего войти в систему в один клик кнопкой <strong>«Войти через Google»</strong>!
-              </p>
-            </div>
+
 
             <div className="text-center pt-1">
               <span className="text-[11px] text-slate-400 font-medium">
@@ -516,6 +509,9 @@ export default function AuthSection({ onLogin, registeredUsers, onRegister }: Au
             </button>
           </form>
         )}
+
+        {/* HelpDesk Section for Firebase configuration */}
+        <HelpDeskSection />
       </div>
     </div>
   );
